@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pétrea Shop</title>
+
+<style>
+body{font-family:Arial;margin:0;background:#f5f5f5}
+header{background:#ffe600;padding:15px;display:flex;justify-content:space-between}
+.logo{font-size:22px;font-weight:bold}
+button{cursor:pointer;border:none;border-radius:5px;padding:6px 10px}
+.container{padding:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px}
+.produto{background:white;padding:10px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.1);text-align:center}
+.produto img{width:100%;height:160px;object-fit:cover}
+.preco{color:#00a650;font-weight:bold;margin:5px 0}
+.add{background:#3483fa;color:white;width:100%}
+#carrinhoBox{position:fixed;right:10px;top:70px;width:260px;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.2);display:none}
+#admin{position:fixed;left:10px;top:70px;background:white;padding:10px;border-radius:8px;display:none}
+input{margin:3px 0;padding:5px;width:100%}
+</style>
+</head>
+
+<body>
+
+<header>
+<div class="logo">Pétrea Shop</div>
+<div>
+<button onclick="toggleAdmin()">⚙️ Admin</button>
+<button onclick="toggleCarrinho()">🛒 (<span id="qtd">0</span>)</button>
+</div>
+</header>
+
+<div class="container" id="listaProdutos"></div>
+
+<div id="carrinhoBox">
+<h3>🛒 Carrinho</h3>
+<ul id="listaCarrinho"></ul>
+<strong>Total: R$ <span id="total">0</span></strong>
+<br><br>
+<button onclick="finalizarWhats()" style="background:#25d366;color:white;width:100%">
+Finalizar no WhatsApp
+</button>
+</div>
+
+<div id="admin">
+<h3>Cadastrar produto</h3>
+<input id="nome" placeholder="Nome">
+<input id="preco" placeholder="Preço">
+<input id="img" placeholder="URL da imagem">
+<button onclick="addProduto()" style="background:#00a650;color:white;width:100%">Adicionar</button>
+</div>
+
+<script>
+let carrinho=[]
+let total=0
+let produtos=[]
+
+function salvarProdutos(){
+localStorage.setItem("produtos",JSON.stringify(produtos))
+}
+
+function carregarProdutos(){
+let dados=localStorage.getItem("produtos")
+if(dados){produtos=JSON.parse(dados)}
+renderProdutos()
+}
+
+function renderProdutos(){
+let lista=document.getElementById("listaProdutos")
+lista.innerHTML=""
+produtos.forEach((p,i)=>{
+lista.innerHTML+=`
+<div class="produto">
+<img src="${p.img}">
+<div><b>${p.nome}</b></div>
+<div class="preco">R$ ${p.preco}</div>
+<button class="add" onclick="addCarrinho('${p.nome}',${p.preco})">Adicionar</button>
+</div>`
+})
+}
+
+function addProduto(){
+let nome=document.getElementById("nome").value
+let preco=parseFloat(document.getElementById("preco").value)
+let img=document.getElementById("img").value
+
+produtos.push({nome,preco,img})
+salvarProdutos()
+renderProdutos()
+}
+
+function addCarrinho(nome,preco){
+carrinho.push({nome,preco})
+total+=preco
+document.getElementById("qtd").innerText=carrinho.length
+document.getElementById("total").innerText=total.toFixed(2)
+atualizarLista()
+}
+
+function atualizarLista(){
+let lista=document.getElementById("listaCarrinho")
+lista.innerHTML=""
+carrinho.forEach(i=>{
+lista.innerHTML+=<li>${i.nome} - R$ ${i.preco.toFixed(2)}</li>
+})
+}
+
+function toggleCarrinho(){
+let box=document.getElementById("carrinhoBox")
+box.style.display=box.style.display==="none"?"block":"none"
+}
+
+function toggleAdmin(){
+let box=document.getElementById("admin")
+box.style.display=box.style.display==="none"?"block":"block"
+}
+
+function finalizarWhats(){
+let msg="Olá! Quero fazer um pedido:%0A"
+carrinho.forEach(i=>{
+msg+=- ${i.nome} R$ ${i.preco.toFixed(2)}%0A
+})
+msg+=Total: R$ ${total.toFixed(2)}
+window.open(https://wa.me/5534984449588?text=${msg})
+}
+
+carregarProdutos()
+</script>
+
+</body>
+</html>
