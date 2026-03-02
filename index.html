@@ -17,6 +17,12 @@ img{max-width:100%;border-radius:6px}
 .topbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
 .qty{width:60px}
 </style>
+
+<!-- 🔥 FIREBASE (GRÁTIS) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
 </head>
 
 <body>
@@ -44,33 +50,63 @@ img{max-width:100%;border-radius:6px}
 </div>
 
 <script>
-// -------- DADOS --------
+// ================= FIREBASE CONFIG =================
+// ⚠️ SUBSTITUA PELAS SUAS CHAVES
+const firebaseConfig = {
+  apiKey: "SUA_KEY",
+  authDomain: "SEU_DOMINIO",
+  projectId: "SEU_PROJECT_ID",
+  storageBucket: "SEU_BUCKET",
+  messagingSenderId: "SEU_ID",
+  appId: "SEU_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+// ================= ELEMENTOS =================
+const home=document.getElementById("home")
+const productView=document.getElementById("productView")
+const cartDiv=document.getElementById("cart")
+const login=document.getElementById("login")
+const admin=document.getElementById("admin")
+const adminBtn=document.getElementById("adminBtn")
+
+// ================= DADOS =================
 let products=JSON.parse(localStorage.getItem("products")||"[]")
 let user=JSON.parse(localStorage.getItem("user")||"null")
 
-const ADMIN_USER="admin"
-const ADMIN_PASS="Petrea2024"
-
-// carrinho agora é por usuário
-function getCart(){
-if(!user) return []
-return JSON.parse(localStorage.getItem("cart_"+user.name)||"[]")
-}
-function saveCart(cart){
-if(!user) return
-localStorage.setItem("cart_"+user.name,JSON.stringify(cart))
+// ================= UTIL =================
+function money(v){
+  return Number(v).toFixed(2).replace(".",",")
 }
 
-// -------- PERMISSÃO --------
 function isAdmin(){ return user && user.admin===true }
 
-// -------- NAV --------
+// ================= CARRINHO NUVEM =================
+async function getCart(){
+  if(!user) return []
+  const doc=await db.collection("carts").doc(user.uid).get()
+  if(!doc.exists) return []
+  return doc.data().items || []
+}
+
+async function saveCart(cart){
+  if(!user) return
+  await db.collection("carts").doc(user.uid).set({
+    items:cart,
+    updatedAt:Date.now()
+  })
+}
+
+// ================= NAV =================
 function hideAll(){
-home.classList.add("hidden")
-productView.classList.add("hidden")
-cartDiv.classList.add("hidden")
-login.classList.add("hidden")
-admin.classList.add("hidden")
+  home.classList.add("hidden")
+  productView.classList.add("hidden")
+  cartDiv.classList.add("hidden")
+  login.classList.add("hidden")
+  admin.classList.add("hidden")
 }
 
 function showHome(){ hideAll(); home.classList.remove("hidden"); renderProducts() }
@@ -78,181 +114,217 @@ function showCart(){ hideAll(); cartDiv.classList.remove("hidden"); renderCart()
 function showLogin(){ hideAll(); login.classList.remove("hidden") }
 
 function showAdmin(){
-if(!isAdmin()){ alert("Acesso apenas admin"); return }
-hideAll(); admin.classList.remove("hidden"); renderAdmin()
+  if(!isAdmin()){ alert("Acesso apenas admin"); return }
+  hideAll(); admin.classList.remove("hidden"); renderAdmin()
 }
 
-// -------- PRODUTOS --------
+// ================= PRODUTOS =================
 function renderProducts(){
-home.innerHTML=""
-products.forEach((p,i)=>{
-home.innerHTML+=`
-<div class="card">
-<img src="${p.img}">
-<h3>${p.name}</h3>
-<p>R$ ${p.price}</p>
-<button onclick="openProduct(${i})">Ver produto</button>
-</div>`
-})
+  home.innerHTML=""
+  products.forEach((p,i)=>{
+    home.innerHTML+=`
+    <div class="card">
+    <img src="${p.img}">
+    <h3>${p.name}</h3>
+    <p>R$ ${money(p.price)}</p>
+    <button onclick="openProduct(${i})">Ver produto</button>
+    </div>`
+  })
 }
 
 function openProduct(i){
-const p=products[i]
-productView.innerHTML=`
-<button onclick="showHome()">⬅ Voltar</button>
-<div class="card">
-<img src="${p.img}">
-<h2>${p.name}</h2>
-<p>${p.desc}</p>
-<p>R$ ${p.price}</p>
+  const p=products[i]
+  productView.innerHTML=`
+  <button onclick="showHome()">⬅ Voltar</button>
+  <div class="card">
+  <img src="${p.img}">
+  <h2>${p.name}</h2>
+  <p>${p.desc}</p>
+  <p>R$ ${money(p.price)}</p>
 
-<label>Cor</label>
-<select id="color">${p.colors.map(c=>`<option>${c}</option>`).join("")}</select>
+  <label>Cor</label>
+  <select id="color">${p.colors.map(c=>`<option>${c}</option>`).join("")}</select>
 
-<label>Quantidade</label>
-<input type="number" id="qty" value="1" min="1">
+  <label>Quantidade</label>
+  <input type="number" id="qty" value="1" min="1">
 
-<button onclick="addCart(${i})">Adicionar ao carrinho</button>
-</div>`
-hideAll()
-productView.classList.remove("hidden")
+  <button onclick="addCart(${i})">Adicionar ao carrinho</button>
+  </div>`
+  hideAll()
+  productView.classList.remove("hidden")
 }
 
-function addCart(i){
-if(!user){ alert("Faça login"); return }
-let cart=getCart()
-const p=products[i]
-cart.push({name:p.name,price:p.price,color:color.value,qty:Number(qty.value)})
-saveCart(cart)
-alert("Adicionado")
+async function addCart(i){
+  if(!user){ alert("Faça login"); return }
+
+  let cart=await getCart()
+  const p=products[i]
+
+  cart.push({
+    name:p.name,
+    price:p.price,
+    color:color.value,
+    qty:Number(qty.value)
+  })
+
+  await saveCart(cart)
+  alert("Adicionado")
 }
 
-// -------- CARRINHO --------
-const cartDiv=document.getElementById("cart")
+// ================= CARRINHO =================
+async function renderCart(){
+  let cart=await getCart()
+  cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
+  let total=0
 
-function renderCart(){
-let cart=getCart()
-cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
-let total=0
+  cart.forEach((c,i)=>{
+    total+=c.price*c.qty
+    cartDiv.innerHTML+=`
+    <div class="card">
+    <b>${c.name}</b><br>
+    Cor: ${c.color}<br>
+    Qtd: <input class="qty" type="number" value="${c.qty}" min="1" onchange="updateQty(${i},this.value)">
+    <br>Total: R$ ${money(c.price*c.qty)}
+    <br><button onclick="removeItem(${i})">Remover</button>
+    </div>`
+  })
 
-cart.forEach((c,i)=>{
-total+=c.price*c.qty
-cartDiv.innerHTML+=`
-<div class="card">
-<b>${c.name}</b><br>
-Cor: ${c.color}<br>
-Qtd: <input class="qty" type="number" value="${c.qty}" min="1" onchange="updateQty(${i},this.value)">
-<br>Total: R$ ${c.price*c.qty}
-<br><button onclick="removeItem(${i})">Remover</button>
-</div>`
-})
-
-cartDiv.innerHTML+=`
-<h3>Total: R$ ${total}</h3>
-<button onclick="clearCart()">🗑 Limpar carrinho</button>
-<button onclick="checkout()">Finalizar no WhatsApp</button>`
+  cartDiv.innerHTML+=`
+  <h3>Total: R$ ${money(total)}</h3>
+  <button onclick="clearCart()">🗑 Limpar carrinho</button>
+  <button onclick="checkout()">Finalizar no WhatsApp</button>`
 }
 
-function updateQty(i,val){
-let cart=getCart()
-cart[i].qty=Number(val)
-saveCart(cart)
-renderCart()
+async function updateQty(i,val){
+  let cart=await getCart()
+  cart[i].qty=Number(val)
+  await saveCart(cart)
+  renderCart()
 }
 
-function removeItem(i){
-let cart=getCart()
-cart.splice(i,1)
-saveCart(cart)
-renderCart()
+async function removeItem(i){
+  let cart=await getCart()
+  cart.splice(i,1)
+  await saveCart(cart)
+  renderCart()
 }
 
-function clearCart(){
-saveCart([])
-renderCart()
+async function clearCart(){
+  await saveCart([])
+  renderCart()
 }
 
-function checkout(){
-let cart=getCart()
-let msg="Pedido:%0A"
-cart.forEach(c=> msg+=`${c.name} ${c.color} x${c.qty}%0A`)
-window.open(`https://wa.me/5534984449588?text=${msg}`)
+async function checkout(){
+  let cart=await getCart()
+
+  let msg="🛒 *Pedido Pétrea Shop*%0A%0A"
+  let total=0
+
+  cart.forEach(c=>{
+    total+=c.price*c.qty
+    msg+=`• ${c.name}%0A`
+    msg+=`Cor: ${c.color}%0A`
+    msg+=`Qtd: ${c.qty}%0A%0A`
+  })
+
+  msg+=`💰 Total: R$ ${money(total)}`
+  window.open(`https://wa.me/5534984449588?text=${msg}`)
 }
 
-// -------- LOGIN --------
+// ================= LOGIN =================
 login.innerHTML=`
 <h3>Login</h3>
-<input id="u" placeholder="Usuário">
+<input id="u" placeholder="Email">
 <input id="p" type="password" placeholder="Senha">
 <button onclick="doLogin()">Entrar</button>
 `
 
-function doLogin(){
-if(u.value===ADMIN_USER && p.value===ADMIN_PASS){
-user={admin:true,name:"admin"}
-}else{
-user={admin:false,name:u.value}
-}
-localStorage.setItem("user",JSON.stringify(user))
-updateAdminBtn()
-showHome()
+async function doLogin(){
+  const email=u.value.trim()
+  const pass=p.value.trim()
+
+  try{
+    const res=await auth.signInWithEmailAndPassword(email,pass)
+
+    user={
+      uid:res.user.uid,
+      name:email,
+      admin: email==="admin@petrea.com"
+    }
+
+    localStorage.setItem("user",JSON.stringify(user))
+    updateAdminBtn()
+    showHome()
+
+  }catch(e){
+    alert("Usuário não encontrado. Ative Email/Senha no Firebase.")
+  }
 }
 
 function updateAdminBtn(){
-if(isAdmin()) adminBtn.classList.remove("hidden")
-else adminBtn.classList.add("hidden")
+  if(isAdmin()) adminBtn.classList.remove("hidden")
+  else adminBtn.classList.add("hidden")
 }
 
-// -------- ADMIN --------
+// ================= ADMIN =================
 function renderAdmin(){
-admin.innerHTML=`
-<button onclick="showHome()">⬅ Voltar</button>
-<h3>Painel Admin</h3>
+  admin.innerHTML=`
+  <button onclick="showHome()">⬅ Voltar</button>
+  <h3>Painel Admin</h3>
 
-<input id="pn" placeholder="Nome">
-<input id="pp" placeholder="Preço">
-<input id="pd" placeholder="Descrição">
-<input id="pc" placeholder="Cores ex: branco,preto">
-<input type="file" id="imgFile">
-<button onclick="addProduct()">Adicionar</button>
+  <input id="pn" placeholder="Nome">
+  <input id="pp" placeholder="Preço">
+  <input id="pd" placeholder="Descrição">
+  <input id="pc" placeholder="Cores ex: branco,preto">
+  <input type="file" id="imgFile">
+  <button onclick="addProduct()">Adicionar</button>
 
-<div id="adminProducts"></div>
-`
-renderAdminProducts()
+  <div id="adminProducts"></div>
+  `
+  renderAdminProducts()
 }
 
 function addProduct(){
-if(!isAdmin()){ alert("Somente admin"); return }
-const file=imgFile.files[0]
-const reader=new FileReader()
-reader.onload=e=>{
-products.push({name:pn.value,price:Number(pp.value),desc:pd.value,colors:pc.value.split(","),img:e.target.result})
-localStorage.setItem("products",JSON.stringify(products))
-renderAdminProducts()
-renderProducts()
-}
-reader.readAsDataURL(file)
+  if(!isAdmin()){ alert("Somente admin"); return }
+
+  const file=imgFile.files[0]
+  if(!file){ alert("Selecione uma imagem"); return }
+
+  const reader=new FileReader()
+  reader.onload=e=>{
+    products.push({
+      name:pn.value,
+      price:Number(pp.value),
+      desc:pd.value,
+      colors:pc.value.split(","),
+      img:e.target.result
+    })
+    localStorage.setItem("products",JSON.stringify(products))
+    renderAdminProducts()
+    renderProducts()
+  }
+  reader.readAsDataURL(file)
 }
 
 function renderAdminProducts(){
-adminProducts.innerHTML=""
-products.forEach((p,i)=>{
-adminProducts.innerHTML+=`
-<div class="card">${p.name}
-<button onclick="deleteProduct(${i})">Excluir</button>
-</div>`
-})
+  adminProducts.innerHTML=""
+  products.forEach((p,i)=>{
+    adminProducts.innerHTML+=`
+    <div class="card">${p.name}
+    <button onclick="deleteProduct(${i})">Excluir</button>
+    </div>`
+  })
 }
 
 function deleteProduct(i){
-if(!isAdmin()) return
-products.splice(i,1)
-localStorage.setItem("products",JSON.stringify(products))
-renderAdminProducts()
-renderProducts()
+  if(!isAdmin()) return
+  products.splice(i,1)
+  localStorage.setItem("products",JSON.stringify(products))
+  renderAdminProducts()
+  renderProducts()
 }
 
-// -------- INIT --------
+// ================= INIT =================
 updateAdminBtn()
 showHome()
 </script>
