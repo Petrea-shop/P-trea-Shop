@@ -15,6 +15,7 @@ input,select{padding:8px;margin:5px;width:100%;max-width:300px}
 img{max-width:100%;border-radius:6px}
 .hidden{display:none}
 .topbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.qty{width:60px}
 </style>
 </head>
 
@@ -43,21 +44,27 @@ img{max-width:100%;border-radius:6px}
 </div>
 
 <script>
-
-// --------- DADOS ---------
+// -------- DADOS --------
 let products=JSON.parse(localStorage.getItem("products")||"[]")
-let cart=JSON.parse(localStorage.getItem("cart")||"[]")
 let user=JSON.parse(localStorage.getItem("user")||"null")
 
 const ADMIN_USER="admin"
 const ADMIN_PASS="Petrea2024"
 
-// --------- PERMISSÃO ---------
-function isAdmin(){
-return user && user.admin===true
+// carrinho agora é por usuário
+function getCart(){
+if(!user) return []
+return JSON.parse(localStorage.getItem("cart_"+user.name)||"[]")
+}
+function saveCart(cart){
+if(!user) return
+localStorage.setItem("cart_"+user.name,JSON.stringify(cart))
 }
 
-// --------- NAV ---------
+// -------- PERMISSÃO --------
+function isAdmin(){ return user && user.admin===true }
+
+// -------- NAV --------
 function hideAll(){
 home.classList.add("hidden")
 productView.classList.add("hidden")
@@ -66,34 +73,16 @@ login.classList.add("hidden")
 admin.classList.add("hidden")
 }
 
-function showHome(){
-hideAll()
-home.classList.remove("hidden")
-renderProducts()
-}
-
-function showCart(){
-hideAll()
-cartDiv.classList.remove("hidden")
-renderCart()
-}
-
-function showLogin(){
-hideAll()
-login.classList.remove("hidden")
-}
+function showHome(){ hideAll(); home.classList.remove("hidden"); renderProducts() }
+function showCart(){ hideAll(); cartDiv.classList.remove("hidden"); renderCart() }
+function showLogin(){ hideAll(); login.classList.remove("hidden") }
 
 function showAdmin(){
-if(!isAdmin()){
-alert("Acesso apenas para administrador")
-return
-}
-hideAll()
-admin.classList.remove("hidden")
-renderAdmin()
+if(!isAdmin()){ alert("Acesso apenas admin"); return }
+hideAll(); admin.classList.remove("hidden"); renderAdmin()
 }
 
-// --------- PRODUTOS ---------
+// -------- PRODUTOS --------
 function renderProducts(){
 home.innerHTML=""
 products.forEach((p,i)=>{
@@ -118,9 +107,7 @@ productView.innerHTML=`
 <p>R$ ${p.price}</p>
 
 <label>Cor</label>
-<select id="color">
-${p.colors.map(c=>`<option>${c}</option>`).join("")}
-</select>
+<select id="color">${p.colors.map(c=>`<option>${c}</option>`).join("")}</select>
 
 <label>Quantidade</label>
 <input type="number" id="qty" value="1" min="1">
@@ -132,44 +119,67 @@ productView.classList.remove("hidden")
 }
 
 function addCart(i){
+if(!user){ alert("Faça login"); return }
+let cart=getCart()
 const p=products[i]
-cart.push({
-name:p.name,
-price:p.price,
-color:color.value,
-qty:qty.value
-})
-localStorage.setItem("cart",JSON.stringify(cart))
-alert("Adicionado ao carrinho")
+cart.push({name:p.name,price:p.price,color:color.value,qty:Number(qty.value)})
+saveCart(cart)
+alert("Adicionado")
 }
 
-// --------- CARRINHO ---------
+// -------- CARRINHO --------
 const cartDiv=document.getElementById("cart")
 
 function renderCart(){
+let cart=getCart()
 cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
 let total=0
-cart.forEach(c=>{
+
+cart.forEach((c,i)=>{
 total+=c.price*c.qty
 cartDiv.innerHTML+=`
 <div class="card">
-${c.name} - ${c.color} x${c.qty}<br>
-R$ ${c.price*c.qty}
+<b>${c.name}</b><br>
+Cor: ${c.color}<br>
+Qtd: <input class="qty" type="number" value="${c.qty}" min="1" onchange="updateQty(${i},this.value)">
+<br>Total: R$ ${c.price*c.qty}
+<br><button onclick="removeItem(${i})">Remover</button>
 </div>`
 })
-cartDiv.innerHTML+=`<h3>Total: R$ ${total}</h3>
+
+cartDiv.innerHTML+=`
+<h3>Total: R$ ${total}</h3>
+<button onclick="clearCart()">🗑 Limpar carrinho</button>
 <button onclick="checkout()">Finalizar no WhatsApp</button>`
 }
 
+function updateQty(i,val){
+let cart=getCart()
+cart[i].qty=Number(val)
+saveCart(cart)
+renderCart()
+}
+
+function removeItem(i){
+let cart=getCart()
+cart.splice(i,1)
+saveCart(cart)
+renderCart()
+}
+
+function clearCart(){
+saveCart([])
+renderCart()
+}
+
 function checkout(){
+let cart=getCart()
 let msg="Pedido:%0A"
-cart.forEach(c=>{
-msg+=`${c.name} ${c.color} x${c.qty}%0A`
-})
+cart.forEach(c=> msg+=`${c.name} ${c.color} x${c.qty}%0A`)
 window.open(`https://wa.me/5534984449588?text=${msg}`)
 }
 
-// --------- LOGIN ---------
+// -------- LOGIN --------
 login.innerHTML=`
 <h3>Login</h3>
 <input id="u" placeholder="Usuário">
@@ -179,72 +189,44 @@ login.innerHTML=`
 
 function doLogin(){
 if(u.value===ADMIN_USER && p.value===ADMIN_PASS){
-user={admin:true}
-localStorage.setItem("user",JSON.stringify(user))
-alert("Admin logado")
+user={admin:true,name:"admin"}
 }else{
 user={admin:false,name:u.value}
-localStorage.setItem("user",JSON.stringify(user))
-alert("Usuário logado")
 }
+localStorage.setItem("user",JSON.stringify(user))
 updateAdminBtn()
 showHome()
 }
 
 function updateAdminBtn(){
-if(isAdmin()){
-adminBtn.classList.remove("hidden")
-}else{
-adminBtn.classList.add("hidden")
-}
+if(isAdmin()) adminBtn.classList.remove("hidden")
+else adminBtn.classList.add("hidden")
 }
 
-// --------- ADMIN ---------
+// -------- ADMIN --------
 function renderAdmin(){
 admin.innerHTML=`
 <button onclick="showHome()">⬅ Voltar</button>
 <h3>Painel Admin</h3>
 
-<h4>Editar Loja</h4>
-<input id="storeNameInput" placeholder="Nome da loja">
-<input id="storeDescInput" placeholder="Descrição">
-<button onclick="saveStore()">Salvar</button>
-
-<h4>Novo Produto</h4>
 <input id="pn" placeholder="Nome">
 <input id="pp" placeholder="Preço">
 <input id="pd" placeholder="Descrição">
-<input id="pc" placeholder="Cores (ex branco,preto)">
+<input id="pc" placeholder="Cores ex: branco,preto">
 <input type="file" id="imgFile">
 <button onclick="addProduct()">Adicionar</button>
 
-<h4>Produtos</h4>
 <div id="adminProducts"></div>
 `
 renderAdminProducts()
 }
 
-function saveStore(){
-if(!isAdmin()) return
-storeName.innerText=storeNameInput.value
-storeDesc.innerText=storeDescInput.value
-}
-
 function addProduct(){
-if(!isAdmin()){
-alert("Somente admin pode adicionar")
-return
-}
+if(!isAdmin()){ alert("Somente admin"); return }
 const file=imgFile.files[0]
 const reader=new FileReader()
-reader.onload=function(e){
-products.push({
-name:pn.value,
-price:pp.value,
-desc:pd.value,
-colors:pc.value.split(","),
-img:e.target.result
-})
+reader.onload=e=>{
+products.push({name:pn.value,price:Number(pp.value),desc:pd.value,colors:pc.value.split(","),img:e.target.result})
 localStorage.setItem("products",JSON.stringify(products))
 renderAdminProducts()
 renderProducts()
@@ -256,18 +238,14 @@ function renderAdminProducts(){
 adminProducts.innerHTML=""
 products.forEach((p,i)=>{
 adminProducts.innerHTML+=`
-<div class="card">
-${p.name}
+<div class="card">${p.name}
 <button onclick="deleteProduct(${i})">Excluir</button>
 </div>`
 })
 }
 
 function deleteProduct(i){
-if(!isAdmin()){
-alert("Somente admin pode excluir")
-return
-}
+if(!isAdmin()) return
 products.splice(i,1)
 localStorage.setItem("products",JSON.stringify(products))
 renderAdminProducts()
@@ -277,7 +255,6 @@ renderProducts()
 // -------- INIT --------
 updateAdminBtn()
 showHome()
-
 </script>
 
 </body>
