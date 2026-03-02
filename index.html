@@ -7,200 +7,249 @@
 
 <style>
 body{font-family:Arial;margin:0;background:#f5f5f5}
-header{background:#ffe600;padding:15px;display:flex;justify-content:space-between;align-items:center}
-.logo{font-weight:bold;font-size:22px}
-.products{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px;padding:20px}
-.card{background:white;padding:10px;border-radius:8px;text-align:center;cursor:pointer}
-.card img{width:100%;height:180px;object-fit:cover}
-.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);justify-content:center;align-items:center}
-.modal-content{background:white;padding:20px;border-radius:8px;width:320px;text-align:center}
-.cartBtn{position:fixed;bottom:20px;right:20px;background:#3483fa;color:white;padding:12px;border-radius:50px;cursor:pointer}
-button{padding:8px;margin-top:5px;cursor:pointer}
-input,select{width:100%;padding:8px;margin:5px 0}
+header{background:#111;color:#fff;padding:15px;text-align:center}
+.container{padding:15px}
+button{padding:10px;margin:5px;border:none;background:#111;color:#fff;border-radius:6px;cursor:pointer}
+input,select{padding:8px;margin:5px;width:100%;max-width:300px}
+.card{background:#fff;padding:10px;border-radius:8px;margin:10px 0}
+img{max-width:100%;border-radius:6px}
+.hidden{display:none}
+.topbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
 </style>
 </head>
 
 <body>
 
 <header>
-<div class="logo" id="storeName">Pétrea Shop</div>
-<div>
-<button onclick="openLogin()">Entrar</button>
-<button id="adminBtn" style="display:none" onclick="openAdmin()">⚙️ Painel</button>
-<button onclick="logout()">Sair</button>
-</div>
+<h2 id="storeName">Pétrea Shop</h2>
+<p id="storeDesc">Calças, shorts, camisas, blusas e mais</p>
 </header>
 
-<div id="products" class="products"></div>
-<div class="cartBtn" onclick="openCart()">🛒</div>
+<div class="container">
 
-<!-- LOGIN -->
-<div class="modal" id="loginModal">
-<div class="modal-content">
-<h3>Login</h3>
-<input id="loginUser" placeholder="Usuário">
-<input id="loginPass" type="password" placeholder="Senha">
-<button onclick="login()">Entrar</button>
-<button onclick="closeModal('loginModal')">Voltar</button>
-</div>
+<div class="topbar">
+<button onclick="showHome()">🏠 Início</button>
+<button onclick="showCart()">🛒 Carrinho</button>
+<button onclick="showLogin()">👤 Conta</button>
+<button id="adminBtn" class="hidden" onclick="showAdmin()">⚙️ Admin</button>
 </div>
 
-<!-- PRODUTO -->
-<div class="modal" id="productModal">
-<div class="modal-content">
-<img id="pImg" style="width:100%;height:180px;object-fit:cover">
-<h3 id="pName"></h3>
-<p id="pPrice"></p>
-<button onclick="closeModal('productModal')">Voltar</button>
-</div>
-</div>
+<div id="home"></div>
+<div id="productView" class="hidden"></div>
+<div id="cart" class="hidden"></div>
+<div id="login" class="hidden"></div>
+<div id="admin" class="hidden"></div>
 
-<!-- CARRINHO -->
-<div class="modal" id="cartModal">
-<div class="modal-content">
-<h3>Carrinho</h3>
-<div id="cartItems"></div>
-<button onclick="closeModal('cartModal')">Voltar</button>
-</div>
-</div>
-
-<!-- ADMIN -->
-<div class="modal" id="adminModal">
-<div class="modal-content">
-<h3>Painel Admin</h3>
-
-<h4>Configurações da loja</h4>
-<input id="newName" placeholder="Nome da loja">
-<input id="logoUrl" placeholder="URL do logo">
-
-<h4>Novo produto</h4>
-<input id="name" placeholder="Nome">
-<input id="price" placeholder="Preço">
-<input id="image" placeholder="Imagem URL">
-
-<button onclick="saveSettings()">Salvar configurações</button>
-<button onclick="addProduct()">Adicionar produto</button>
-
-<h4>Produtos cadastrados</h4>
-<div id="productList"></div>
-
-<button onclick="closeModal('adminModal')">Voltar</button>
-</div>
 </div>
 
 <script>
-const ADMIN_USER="admin";
-const ADMIN_PASS="Petrea2024";
+let products=JSON.parse(localStorage.getItem("products")||"[]")
+let cart=JSON.parse(localStorage.getItem("cart")||"[]")
+let user=JSON.parse(localStorage.getItem("user")||"null")
 
-let settings=JSON.parse(localStorage.getItem("settings")||'{"name":"Pétrea Shop"}');
-let products=JSON.parse(localStorage.getItem("products")||"[]");
-let currentUser=localStorage.getItem("currentUser");
+const ADMIN_USER="admin"
+const ADMIN_PASS="Petrea2024"
 
-document.getElementById("storeName").innerText=settings.name;
+// --------- NAV ---------
+function hideAll(){
+home.classList.add("hidden")
+productView.classList.add("hidden")
+cartDiv.classList.add("hidden")
+login.classList.add("hidden")
+admin.classList.add("hidden")
+}
 
+function showHome(){
+hideAll()
+home.classList.remove("hidden")
+renderProducts()
+}
+
+function showCart(){
+hideAll()
+cartDiv.classList.remove("hidden")
+renderCart()
+}
+
+function showLogin(){
+hideAll()
+login.classList.remove("hidden")
+}
+
+function showAdmin(){
+hideAll()
+admin.classList.remove("hidden")
+renderAdmin()
+}
+
+// --------- PRODUCTS ---------
 function renderProducts(){
-const container=document.getElementById("products");
-container.innerHTML="";
+home.innerHTML=""
 products.forEach((p,i)=>{
-container.innerHTML+=`
-<div class="card" onclick="openProduct(${i})">
-<img src="${p.image}">
-<div>${p.name}</div>
-<div>R$ ${p.price}</div>
-</div>`;
-});
+home.innerHTML+=`
+<div class="card">
+<img src="${p.img}">
+<h3>${p.name}</h3>
+<p>R$ ${p.price}</p>
+<button onclick="openProduct(${i})">Ver produto</button>
+</div>`
+})
 }
 
 function openProduct(i){
-const p=products[i];
-document.getElementById("pImg").src=p.image;
-document.getElementById("pName").innerText=p.name;
-document.getElementById("pPrice").innerText="R$ "+p.price;
-document.getElementById("productModal").style.display="flex";
+const p=products[i]
+productView.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<div class="card">
+<img src="${p.img}">
+<h2>${p.name}</h2>
+<p>${p.desc}</p>
+<p>R$ ${p.price}</p>
+
+<label>Cor</label>
+<select id="color">
+${p.colors.map(c=>`<option>${c}</option>`).join("")}
+</select>
+
+<label>Quantidade</label>
+<input type="number" id="qty" value="1" min="1">
+
+<button onclick="addCart(${i})">Adicionar ao carrinho</button>
+</div>`
+hideAll()
+productView.classList.remove("hidden")
 }
 
-function openCart(){document.getElementById("cartModal").style.display="flex"}
-
-function openLogin(){document.getElementById("loginModal").style.display="flex"}
-
-function openAdmin(){
-document.getElementById("adminModal").style.display="flex";
-renderProductList();
+function addCart(i){
+const p=products[i]
+cart.push({
+name:p.name,
+price:p.price,
+color:color.value,
+qty:qty.value
+})
+localStorage.setItem("cart",JSON.stringify(cart))
+alert("Adicionado ao carrinho")
 }
 
-function closeModal(id){document.getElementById(id).style.display="none"}
+// --------- CART ---------
+const cartDiv=document.getElementById("cart")
 
-function login(){
-const u=document.getElementById("loginUser").value;
-const p=document.getElementById("loginPass").value;
+function renderCart(){
+cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
+let total=0
+cart.forEach((c,i)=>{
+total+=c.price*c.qty
+cartDiv.innerHTML+=`
+<div class="card">
+${c.name} - ${c.color} x${c.qty}<br>
+R$ ${c.price*c.qty}
+</div>`
+})
+cartDiv.innerHTML+=`<h3>Total: R$ ${total}</h3>
+<button onclick="checkout()">Finalizar no WhatsApp</button>`
+}
 
-if(u===ADMIN_USER && p===ADMIN_PASS){
-currentUser="admin";
-localStorage.setItem("currentUser","admin");
-document.getElementById("adminBtn").style.display="inline";
-closeModal('loginModal');
+function checkout(){
+let msg="Pedido:%0A"
+cart.forEach(c=>{
+msg+=`${c.name} ${c.color} x${c.qty}%0A`
+})
+window.open(`https://wa.me/5534984449588?text=${msg}`)
+}
+
+// --------- LOGIN ---------
+login.innerHTML=`
+<h3>Login</h3>
+<input id="u" placeholder="Usuário">
+<input id="p" type="password" placeholder="Senha">
+<button onclick="doLogin()">Entrar</button>
+`
+
+function doLogin(){
+if(u.value===ADMIN_USER && p.value===ADMIN_PASS){
+user={admin:true}
+localStorage.setItem("user",JSON.stringify(user))
+adminBtn.classList.remove("hidden")
+alert("Admin logado")
+showHome()
 }else{
-alert("Login inválido");
+user={admin:false,name:u.value}
+localStorage.setItem("user",JSON.stringify(user))
+alert("Logado")
+showHome()
 }
 }
 
-function logout(){
-localStorage.removeItem("currentUser");
-location.reload();
+// --------- ADMIN ---------
+function renderAdmin(){
+admin.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<h3>Painel Admin</h3>
+
+<h4>Editar Loja</h4>
+<input id="storeNameInput" placeholder="Nome da loja">
+<input id="storeDescInput" placeholder="Descrição">
+<button onclick="saveStore()">Salvar</button>
+
+<h4>Novo Produto</h4>
+<input id="pn" placeholder="Nome">
+<input id="pp" placeholder="Preço">
+<input id="pd" placeholder="Descrição">
+<input id="pc" placeholder="Cores (ex branco,preto)">
+<input type="file" id="imgFile">
+<button onclick="addProduct()">Adicionar</button>
+
+<h4>Produtos</h4>
+<div id="adminProducts"></div>
+`
+renderAdminProducts()
 }
 
-function saveSettings(){
-settings.name=document.getElementById("newName").value||settings.name;
-localStorage.setItem("settings",JSON.stringify(settings));
-location.reload();
+function saveStore(){
+storeName.innerText=storeNameInput.value
+storeDesc.innerText=storeDescInput.value
 }
 
 function addProduct(){
+const file=imgFile.files[0]
+const reader=new FileReader()
+reader.onload=function(e){
 products.push({
-name:document.getElementById("name").value,
-price:document.getElementById("price").value,
-image:document.getElementById("image").value
-});
-localStorage.setItem("products",JSON.stringify(products));
-renderProductList();
-renderProducts();
+name:pn.value,
+price:pp.value,
+desc:pd.value,
+colors:pc.value.split(","),
+img:e.target.result
+})
+localStorage.setItem("products",JSON.stringify(products))
+renderAdminProducts()
+renderProducts()
+}
+reader.readAsDataURL(file)
 }
 
-function renderProductList(){
-const list=document.getElementById("productList");
-list.innerHTML="";
+function renderAdminProducts(){
+adminProducts.innerHTML=""
 products.forEach((p,i)=>{
-list.innerHTML+=`
-<div>
-${p.name} - R$ ${p.price}
-<button onclick="editProduct(${i})">Editar</button>
+adminProducts.innerHTML+=`
+<div class="card">
+${p.name}
 <button onclick="deleteProduct(${i})">Excluir</button>
-</div>`;
-});
-}
-
-function editProduct(i){
-const name=prompt("Novo nome",products[i].name);
-const price=prompt("Novo preço",products[i].price);
-const image=prompt("Nova imagem",products[i].image);
-products[i]={name,price,image};
-localStorage.setItem("products",JSON.stringify(products));
-renderProductList();
-renderProducts();
+</div>`
+})
 }
 
 function deleteProduct(i){
-products.splice(i,1);
-localStorage.setItem("products",JSON.stringify(products));
-renderProductList();
-renderProducts();
+products.splice(i,1)
+localStorage.setItem("products",JSON.stringify(products))
+renderAdminProducts()
+renderProducts()
 }
 
-if(currentUser==="admin"){
-document.getElementById("adminBtn").style.display="inline";
-}
-
-renderProducts();
+// -------- INIT --------
+if(user?.admin) adminBtn.classList.remove("hidden")
+showHome()
 </script>
 
 </body>
