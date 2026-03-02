@@ -17,6 +17,7 @@ img{max-width:100%;border-radius:6px}
 .topbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
 .qty{width:60px}
 .pasteBox{border:2px dashed #999;padding:15px;margin:10px 0;text-align:center;background:#fafafa}
+.badge{background:red;color:#fff;border-radius:50%;padding:2px 6px;font-size:12px;margin-left:4px}
 </style>
 </head>
 
@@ -31,7 +32,7 @@ img{max-width:100%;border-radius:6px}
 
 <div class="topbar">
 <button onclick="showHome()">🏠 Início</button>
-<button onclick="showCart()">🛒 Carrinho</button>
+<button onclick="showCart()">🛒 Carrinho <span id="cartCount" class="badge">0</span></button>
 <button onclick="showLogin()">👤 Conta</button>
 <button id="adminBtn" class="hidden" onclick="showAdmin()">⚙️ Admin</button>
 </div>
@@ -44,12 +45,11 @@ img{max-width:100%;border-radius:6px}
 
 </div>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🔴 COLE AQUI SUAS CHAVES DO FIREBASE
+// 🔴 COLE SUAS CHAVES
 const firebaseConfig = {
   apiKey: "SUA_API_KEY",
   authDomain: "SEU_AUTH_DOMAIN",
@@ -62,15 +62,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// -------- DADOS --------
 let products=[];
 let user=JSON.parse(localStorage.getItem("user")||"null");
 let currentImage="";
+let editId=null;
 
 const ADMIN_USER="admin";
 const ADMIN_PASS="Petrea2024";
 
-// -------- NAV --------
+// NAV
 function hideAll(){
 home.classList.add("hidden");
 productView.classList.add("hidden");
@@ -78,24 +78,15 @@ cart.classList.add("hidden");
 login.classList.add("hidden");
 admin.classList.add("hidden");
 }
-
 window.showHome=function(){ hideAll(); home.classList.remove("hidden"); renderProducts(); }
 window.showCart=function(){ hideAll(); cart.classList.remove("hidden"); renderCart(); }
 window.showLogin=function(){ hideAll(); login.classList.remove("hidden"); }
-
-window.showAdmin=function(){
-if(!isAdmin()){ alert("Acesso apenas admin"); return }
-hideAll(); admin.classList.remove("hidden"); renderAdmin();
-}
+window.showAdmin=function(){ if(!isAdmin()) return alert("Acesso apenas admin"); hideAll(); admin.classList.remove("hidden"); renderAdmin(); }
 
 function isAdmin(){ return user && user.admin===true }
+function updateAdminBtn(){ adminBtn.classList.toggle("hidden",!isAdmin()) }
 
-function updateAdminBtn(){
-if(isAdmin()) adminBtn.classList.remove("hidden")
-else adminBtn.classList.add("hidden")
-}
-
-// -------- PRODUTOS FIREBASE --------
+// PRODUCTS
 async function loadProducts(){
 const snap=await getDocs(collection(db,"products"));
 products=[];
@@ -106,8 +97,7 @@ renderProducts();
 function renderProducts(){
 home.innerHTML="";
 products.forEach((p,i)=>{
-home.innerHTML+=`
-<div class="card">
+home.innerHTML+=`<div class="card">
 <img src="${p.img}">
 <h3>${p.name}</h3>
 <p>R$ ${p.price}</p>
@@ -118,131 +108,131 @@ home.innerHTML+=`
 
 window.openProduct=function(i){
 const p=products[i];
-productView.innerHTML=`
-<button onclick="showHome()">⬅ Voltar</button>
+productView.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>
 <div class="card">
 <img src="${p.img}">
 <h2>${p.name}</h2>
 <p>${p.desc}</p>
 <p>R$ ${p.price}</p>
-<label>Quantidade</label>
 <input type="number" id="qty" value="1" min="1">
 <button onclick="addCart(${i})">Adicionar ao carrinho</button>
 </div>`;
-hideAll();
-productView.classList.remove("hidden");
+hideAll(); productView.classList.remove("hidden");
 }
 
-// -------- CARRINHO GLOBAL --------
-function getCart(){
-if(!user) return [];
-return JSON.parse(localStorage.getItem("cart_"+user.name)||"[]");
-}
-function saveCart(c){
-if(!user) return;
-localStorage.setItem("cart_"+user.name,JSON.stringify(c));
+// CART
+function getCart(){ if(!user) return []; return JSON.parse(localStorage.getItem("cart_"+user.name)||"[]") }
+function saveCart(c){ if(!user) return; localStorage.setItem("cart_"+user.name,JSON.stringify(c)); updateCartCount(); }
+
+function updateCartCount(){
+const c=getCart();
+const total=c.reduce((s,i)=>s+i.qty,0);
+cartCount.textContent=total;
 }
 
 window.addCart=function(i){
-if(!user){ alert("Faça login"); return }
-let cartData=getCart();
-const p=products[i];
-cartData.push({name:p.name,price:p.price,qty:Number(qty.value)});
-saveCart(cartData);
+if(!user) return alert("Faça login");
+let c=getCart();
+const q=document.getElementById("qty");
+c.push({name:products[i].name,price:products[i].price,qty:Number(q.value||1)});
+saveCart(c);
 alert("Adicionado");
 }
 
 function renderCart(){
-let cartData=getCart();
+let c=getCart();
 cart.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`;
 let total=0;
-cartData.forEach((c,i)=>{
-total+=c.price*c.qty;
-cart.innerHTML+=`
-<div class="card">
-<b>${c.name}</b><br>
-Qtd: ${c.qty}<br>
-Total: R$ ${c.price*c.qty}
+
+c.forEach((item,i)=>{
+total+=item.price*item.qty;
+cart.innerHTML+=`<div class="card">
+<b>${item.name}</b><br>
+Qtd: <input class="qty" type="number" value="${item.qty}" onchange="changeQty(${i},this.value)">
+<br>Total: R$ ${item.price*item.qty}
+<br><button onclick="removeItem(${i})">Remover</button>
 </div>`;
 });
-cart.innerHTML+=`<h3>Total: R$ ${total}</h3>`;
+
+cart.innerHTML+=`<h3>Total: R$ ${total}</h3>
+<button onclick="checkout()">Finalizar no WhatsApp</button>`;
 }
 
-// -------- LOGIN --------
-login.innerHTML=`
-<h3>Login</h3>
+window.changeQty=function(i,v){ let c=getCart(); c[i].qty=Number(v); saveCart(c); renderCart(); }
+window.removeItem=function(i){ let c=getCart(); c.splice(i,1); saveCart(c); renderCart(); }
+
+window.checkout=function(){
+let c=getCart();
+if(!c.length) return alert("Carrinho vazio");
+let msg="Pedido:%0A";
+c.forEach(i=> msg+=`${i.name} x${i.qty} - R$${i.price*i.qty}%0A`);
+window.open(`https://wa.me/5534984449588?text=${msg}`);
+}
+
+// LOGIN
+login.innerHTML=`<h3>Login</h3>
 <input id="u" placeholder="Usuário">
 <input id="p" type="password" placeholder="Senha">
-<button onclick="doLogin()">Entrar</button>
-`;
+<button onclick="doLogin()">Entrar</button>`;
 
 window.doLogin=function(){
-if(u.value===ADMIN_USER && p.value===ADMIN_PASS){
-user={admin:true,name:"admin"};
-}else{
-user={admin:false,name:u.value};
-}
+if(u.value===ADMIN_USER && p.value===ADMIN_PASS){ user={admin:true,name:"admin"}; }
+else{ user={admin:false,name:u.value}; }
 localStorage.setItem("user",JSON.stringify(user));
-updateAdminBtn();
-showHome();
+updateAdminBtn(); updateCartCount(); showHome();
 }
 
-// -------- ADMIN --------
+// ADMIN
 function renderAdmin(){
-admin.innerHTML=`
-<button onclick="showHome()">⬅ Voltar</button>
-<h3>Painel Admin</h3>
+admin.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>
+<h3>Painel Admin Avançado</h3>
 
 <input id="pn" placeholder="Nome">
 <input id="pp" placeholder="Preço">
 <input id="pd" placeholder="Descrição">
-<input id="pc" placeholder="Cores ex: branco,preto">
+<input id="pc" placeholder="Cores">
 
-<div class="pasteBox" contenteditable="true" id="pasteArea">
-📋 Cole a imagem aqui (Ctrl+V)
-</div>
+<div class="pasteBox" contenteditable="true" id="pasteArea">📋 Cole a imagem aqui</div>
+<img id="preview" style="max-width:120px;display:none">
 
-<img id="preview" style="max-width:150px;display:none;margin:10px 0">
+<button id="btnSave">Salvar Produto</button>
+<hr>
+<div id="adminProducts"></div>`;
 
-<button onclick="addProduct()">Adicionar</button>
-
-<div id="adminProducts"></div>
-`;
-
-// capturar colagem
 setTimeout(()=>{
 const box=document.getElementById("pasteArea");
 box.onpaste=e=>{
-const items=e.clipboardData.items;
-for(let item of items){
-if(item.type.indexOf("image")!==-1){
-const file=item.getAsFile();
+for(let item of e.clipboardData.items){
+if(item.type.includes("image")){
 const reader=new FileReader();
-reader.onload=ev=>{
-currentImage=ev.target.result;
-preview.src=currentImage;
-preview.style.display="block";
-};
-reader.readAsDataURL(file);
+reader.onload=ev=>{ currentImage=ev.target.result; preview.src=currentImage; preview.style.display="block"; };
+reader.readAsDataURL(item.getAsFile());
 }
 }
 };
+
+document.getElementById("btnSave").onclick=saveProduct;
 },200);
 
 renderAdminProducts();
 }
 
-window.addProduct=async function(){
-if(!isAdmin()){ alert("Somente admin"); return }
-if(!currentImage){ alert("Cole uma imagem primeiro"); return }
-
-await addDoc(collection(db,"products"),{
+async function saveProduct(){
+if(!isAdmin()) return;
+const data={
 name:pn.value,
 price:Number(pp.value),
 desc:pd.value,
 colors:pc.value.split(","),
 img:currentImage
-});
+};
+
+if(editId){
+await updateDoc(doc(db,"products",editId),data);
+editId=null;
+}else{
+await addDoc(collection(db,"products"),data);
+}
 
 currentImage="";
 loadProducts();
@@ -253,13 +243,32 @@ async function renderAdminProducts(){
 const snap=await getDocs(collection(db,"products"));
 adminProducts.innerHTML="";
 snap.forEach(d=>{
-adminProducts.innerHTML+=`<div class="card">${d.data().name}</div>`;
+adminProducts.innerHTML+=`<div class="card">
+<b>${d.data().name}</b>
+<br><button onclick="editProduct('${d.id}')">Editar</button>
+<button onclick="deleteProduct('${d.id}')">Excluir</button>
+</div>`;
 });
 }
 
-// -------- INIT --------
+window.editProduct=function(id){
+const p=products.find(x=>x.id===id);
+pn.value=p.name; pp.value=p.price; pd.value=p.desc; pc.value=(p.colors||[]).join(",");
+currentImage=p.img; preview.src=p.img; preview.style.display="block";
+editId=id;
+window.scrollTo(0,0);
+}
+
+window.deleteProduct=async function(id){
+if(!confirm("Excluir produto?")) return;
+await deleteDoc(doc(db,"products",id));
+loadProducts(); renderAdmin();
+}
+
+// INIT
 updateAdminBtn();
 loadProducts();
+updateCartCount();
 showHome();
 
 </script>
