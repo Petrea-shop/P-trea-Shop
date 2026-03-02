@@ -94,14 +94,14 @@ box.style.display=box.style.display=="block"?"none":"block";
 let itens=document.getElementById("itens");
 itens.innerHTML="";
 carrinho.forEach(p=>{
-itens.innerHTML+=<div>${p.nome} - R$ ${p.preco}</div>;
+itens.innerHTML+=`<div>${p.nome} - R$ ${p.preco}</div>`;
 });
 }
 
 function finalizar(){
 let msg="Pedido:%0A";
-carrinho.forEach(p=>{msg+=${p.nome} - R$ ${p.preco}%0A});
-window.open(https://wa.me/5534984449588?text=${msg});
+carrinho.forEach(p=>{msg+=`${p.nome} - R$ ${p.preco}%0A`});
+window.open(`https://wa.me/5534984449588?text=${msg}`);
 }
 
 function abrirLogin(){
