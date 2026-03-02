@@ -2,166 +2,125 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pétrea Shop</title>
 
 <style>
-body{
-  font-family: Arial, sans-serif;
-  margin:0;
-  background:#f5f5f5;
-}
-
-header{
-  background:#ffd400;
-  padding:15px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  font-weight:bold;
-}
-
-.container{
-  padding:20px;
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-  gap:15px;
-}
-
-.card{
-  background:white;
-  padding:15px;
-  border-radius:10px;
-  box-shadow:0 2px 5px rgba(0,0,0,0.1);
-}
-
-button{
-  padding:8px 12px;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-.add{
-  background:#28a745;
-  color:white;
-}
-
-#carrinhoBox{
-  position:fixed;
-  right:20px;
-  top:70px;
-  background:white;
-  padding:15px;
-  width:250px;
-  border-radius:10px;
-  box-shadow:0 2px 10px rgba(0,0,0,0.2);
-  display:none;
-}
-
-#admin{
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  background:white;
-  padding:20px;
-  border-top:3px solid #ffd400;
-  display:none;
-}
+body{font-family:Arial;margin:0;background:#f5f5f5}
+header{background:#ffd600;padding:15px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:22px;font-weight:bold}
+button{cursor:pointer;border:none;border-radius:5px;padding:6px 10px}
+.container{padding:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px}
+.produto{background:#fff;padding:10px;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.1);text-align:center}
+.produto img{width:100%;height:160px;object-fit:cover;border-radius:6px}
+.preco{color:#009688;font-weight:bold;margin:5px 0}
+#adminPanel,#carrinhoBox,#loginBox{display:none;position:fixed;top:70px;right:20px;background:#fff;padding:15px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.2);width:260px}
+input{margin:5px 0;padding:6px;width:100%}
 </style>
 </head>
 
 <body>
 
 <header>
-  Pétrea Shop
-  <div>
-    <button onclick="abrirAdmin()">Admin</button>
-    <button onclick="toggleCarrinho()">🛒 (<span id="qtd">0</span>)</button>
-  </div>
+<div class="logo">Pétrea Shop</div>
+<div>
+<button onclick="abrirLogin()">Admin</button>
+<button onclick="toggleCarrinho()">🛒 (<span id="qtd">0</span>)</button>
+</div>
 </header>
 
 <div class="container" id="listaProdutos"></div>
 
-<div id="carrinhoBox">
-  <h3>Carrinho</h3>
-  <div id="itensCarrinho"></div>
-  <button onclick="finalizar()">Finalizar no WhatsApp</button>
+<!-- LOGIN -->
+<div id="loginBox">
+<h3>Login Admin</h3>
+<input id="user" placeholder="Usuário">
+<input id="pass" type="password" placeholder="Senha">
+<button onclick="login()">Entrar</button>
 </div>
 
-<div id="admin">
-  <h3>Adicionar Produto</h3>
-  <input id="nome" placeholder="Nome"><br><br>
-  <input id="preco" placeholder="Preço"><br><br>
-  <button onclick="salvarProduto()">Salvar</button>
+<!-- ADMIN -->
+<div id="adminPanel">
+<h3>Novo Produto</h3>
+<input id="nome" placeholder="Nome">
+<input id="preco" placeholder="Preço">
+<input id="img" placeholder="URL da imagem">
+<button onclick="addProduto()">Salvar</button>
+</div>
+
+<!-- CARRINHO -->
+<div id="carrinhoBox">
+<h3>Carrinho</h3>
+<div id="itens"></div>
+<button onclick="finalizar()">Finalizar no WhatsApp</button>
 </div>
 
 <script>
-let produtos = JSON.parse(localStorage.getItem("produtos")) || []
-let carrinho = []
+let produtos = JSON.parse(localStorage.getItem("produtos")) || [];
+let carrinho = [];
 
-function carregarProdutos(){
-  const lista = document.getElementById("listaProdutos")
-  lista.innerHTML = ""
-  produtos.forEach((p,i)=>{
-    lista.innerHTML += `
-      <div class="card">
-        <h3>${p.nome}</h3>
-        <p>R$ ${p.preco}</p>
-        <button class="add" onclick="addCarrinho(${i})">Adicionar</button>
-      </div>
-    `
-  })
+function render(){
+let lista=document.getElementById("listaProdutos");
+lista.innerHTML="";
+produtos.forEach((p,i)=>{
+lista.innerHTML+=`
+<div class="produto">
+<img src="${p.img}">
+<h4>${p.nome}</h4>
+<div class="preco">R$ ${p.preco}</div>
+<button onclick="addCarrinho(${i})">Adicionar</button>
+</div>`;
+});
+}
+
+function addProduto(){
+let p={
+nome:document.getElementById("nome").value,
+preco:document.getElementById("preco").value,
+img:document.getElementById("img").value
+};
+produtos.push(p);
+localStorage.setItem("produtos",JSON.stringify(produtos));
+render();
 }
 
 function addCarrinho(i){
-  carrinho.push(produtos[i])
-  document.getElementById("qtd").innerText = carrinho.length
-  renderCarrinho()
-}
-
-function renderCarrinho(){
-  const box = document.getElementById("itensCarrinho")
-  box.innerHTML = ""
-  carrinho.forEach(p=>{
-    box.innerHTML += `<p>${p.nome} - R$ ${p.preco}</p>`
-  })
+carrinho.push(produtos[i]);
+document.getElementById("qtd").innerText=carrinho.length;
 }
 
 function toggleCarrinho(){
-  const box = document.getElementById("carrinhoBox")
-  box.style.display = box.style.display === "none" ? "block" : "none"
+let box=document.getElementById("carrinhoBox");
+box.style.display=box.style.display=="block"?"none":"block";
+let itens=document.getElementById("itens");
+itens.innerHTML="";
+carrinho.forEach(p=>{
+itens.innerHTML+=<div>${p.nome} - R$ ${p.preco}</div>;
+});
 }
 
 function finalizar(){
-  let texto = "Olá, quero comprar:%0A"
-  carrinho.forEach(p=>{
-    texto += `- ${p.nome} R$ ${p.preco}%0A`
-  })
-  window.open(`https://wa.me/5534984449588?text=${texto}`)
+let msg="Pedido:%0A";
+carrinho.forEach(p=>{msg+=${p.nome} - R$ ${p.preco}%0A});
+window.open(https://wa.me/5534984449588?text=${msg});
 }
 
-function abrirAdmin(){
-  const senha = prompt("Senha admin:")
-  if(senha === "1234"){
-    document.getElementById("admin").style.display = "block"
-  }else{
-    alert("Senha incorreta")
-  }
+function abrirLogin(){
+document.getElementById("loginBox").style.display="block";
 }
 
-function salvarProduto(){
-  const nome = document.getElementById("nome").value
-  const preco = document.getElementById("preco").value
+function login(){
+let u=document.getElementById("user").value;
+let s=document.getElementById("pass").value;
 
-  produtos.push({nome,preco})
-  localStorage.setItem("produtos", JSON.stringify(produtos))
-  carregarProdutos()
-  alert("Produto salvo!")
+if(u==="admin" && s==="Petrea2024"){
+document.getElementById("loginBox").style.display="none";
+document.getElementById("adminPanel").style.display="block";
+}else{
+alert("Senha incorreta");
+}
 }
 
-carregarProdutos()
+render();
 </script>
 
 </body>
