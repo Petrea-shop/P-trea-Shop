@@ -43,201 +43,292 @@ img{max-width:100%;border-radius:6px}
 
 </div>
 
-<!-- FIREBASE SDK -->
 <script type="module">
 
-// 🔴 COLE SEU firebaseConfig AQUI
+// ================= FIREBASE =================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
-setDoc, getDoc, onSnapshot
+  getFirestore, collection, addDoc, getDocs, deleteDoc,
+  doc, setDoc, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-getAuth, signInWithEmailAndPassword,
-createUserWithEmailAndPassword, onAuthStateChanged
+  getAuth, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+// 🔴 COLE SEU CONFIG AQUI
 const firebaseConfig = {
-  // 🔥 COLE AQUI SEU CONFIG
+  // COLE AQUI
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+// ================= ELEMENTOS =================
+const homeDiv = document.getElementById("home");
+const productViewDiv = document.getElementById("productView");
+const cartDiv = document.getElementById("cart");
+const loginDiv = document.getElementById("login");
+const adminDiv = document.getElementById("admin");
+const adminBtn = document.getElementById("adminBtn");
+
 // ================= ESTADO =================
-let products=[]
-let user=null
-let settings={}
-
-// ================= AUTH =================
-onAuthStateChanged(auth, async (u)=>{
-user=u
-updateAdminBtn()
-await loadCart()
-showHome()
-})
-
-// ================= PRODUTOS =================
-async function loadProducts(){
-const snap=await getDocs(collection(db,"products"))
-products=snap.docs.map(d=>({id:d.id,...d.data()}))
-}
-
-async function renderProducts(){
-await loadProducts()
-home.innerHTML=""
-
-products.forEach((p,i)=>{
-home.innerHTML+=`
-<div class="card">
-<img src="${p.img||''}">
-<h3>${p.name}</h3>
-<p>R$ ${p.price}</p>
-<button onclick="openProduct(${i})">Ver produto</button>
-</div>`
-})
-}
-
-window.openProduct=function(i){
-const p=products[i]
-productView.innerHTML=`
-<button onclick="showHome()">⬅ Voltar</button>
-<div class="card">
-<img src="${p.img||''}">
-<h2>${p.name}</h2>
-<p>${p.desc}</p>
-<p>R$ ${p.price}</p>
-
-<label>Cor</label>
-<select id="color">${(p.colors||["única"]).map(c=>`<option>${c}</option>`).join("")}</select>
-
-<label>Quantidade</label>
-<input type="number" id="qty" value="1" min="1">
-
-<button onclick="addCart('${p.id}')">Adicionar ao carrinho</button>
-</div>`
-hideAll()
-productView.classList.remove("hidden")
-}
-
-// ================= CARRINHO NUVEM =================
-async function loadCart(){
-if(!user) return
-const ref=doc(db,"carts",user.uid)
-const snap=await getDoc(ref)
-window.cart=snap.exists()?snap.data().items:[]
-}
-
-async function saveCart(){
-if(!user) return
-await setDoc(doc(db,"carts",user.uid),{items:window.cart})
-}
-
-window.addCart=async function(id){
-if(!user){alert("Faça login");return}
-const p=products.find(x=>x.id===id)
-window.cart.push({name:p.name,price:p.price,color:color.value,qty:Number(qty.value)})
-await saveCart()
-alert("Adicionado")
-}
-
-// ================= ADMIN =================
-function isAdmin(){
-return user && user.email==="admin@petrea.com"
-}
-
-function updateAdminBtn(){
-if(isAdmin()) adminBtn.classList.remove("hidden")
-else adminBtn.classList.add("hidden")
-}
-
-window.renderAdmin=async function(){
-admin.innerHTML=`
-<button onclick="showHome()">⬅ Voltar</button>
-<h3>Painel Admin</h3>
-
-<input id="pn" placeholder="Nome">
-<input id="pp" placeholder="Preço">
-<input id="pd" placeholder="Descrição">
-<input id="pc" placeholder="Cores">
-<input id="pi" placeholder="URL da imagem">
-<button onclick="addProduct()">Adicionar</button>
-
-<div id="adminProducts"></div>
-`
-renderAdminProducts()
-}
-
-window.addProduct=async function(){
-await addDoc(collection(db,"products"),{
-name:pn.value,
-price:Number(pp.value),
-desc:pd.value,
-colors:pc.value.split(","),
-img:pi.value
-})
-alert("Produto adicionado!")
-renderAdminProducts()
-renderProducts()
-}
-
-async function renderAdminProducts(){
-const snap=await getDocs(collection(db,"products"))
-adminProducts.innerHTML=""
-snap.forEach(d=>{
-adminProducts.innerHTML+=`
-<div class="card">
-${d.data().name}
-<button onclick="deleteProduct('${d.id}')">Excluir</button>
-</div>`
-})
-}
-
-window.deleteProduct=async function(id){
-await deleteDoc(doc(db,"products",id))
-renderAdminProducts()
-renderProducts()
-}
+let products = [];
+let user = null;
+let cartItems = [];
 
 // ================= NAV =================
-window.hideAll=function(){
-home.classList.add("hidden")
-productView.classList.add("hidden")
-cart.classList.add("hidden")
-login.classList.add("hidden")
-admin.classList.add("hidden")
+window.hideAll = function () {
+  homeDiv.classList.add("hidden");
+  productViewDiv.classList.add("hidden");
+  cartDiv.classList.add("hidden");
+  loginDiv.classList.add("hidden");
+  adminDiv.classList.add("hidden");
+};
+
+window.showHome = async function () {
+  hideAll();
+  homeDiv.classList.remove("hidden");
+  await renderProducts();
+};
+
+window.showCart = async function () {
+  hideAll();
+  cartDiv.classList.remove("hidden");
+  renderCart();
+};
+
+window.showLogin = function () {
+  hideAll();
+  loginDiv.classList.remove("hidden");
+
+  loginDiv.innerHTML = `
+    <h3>Login</h3>
+    <input id="email" placeholder="Usuário ou Email">
+    <input id="senha" type="password" placeholder="Senha">
+    <button onclick="loginUser()">Entrar</button>
+    <button onclick="registerUser()">Criar conta</button>
+  `;
+};
+
+window.showAdmin = function () {
+  if (!isAdmin()) {
+    alert("Apenas admin");
+    return;
+  }
+  hideAll();
+  adminDiv.classList.remove("hidden");
+  renderAdmin();
+};
+
+// ================= AUTH =================
+onAuthStateChanged(auth, async (u) => {
+  user = u;
+  updateAdminBtn();
+  await loadCart();
+  showHome();
+});
+
+function isAdmin() {
+  return user && user.email === "admin@petrea.com";
 }
 
-window.showHome=function(){ hideAll(); home.classList.remove("hidden"); renderProducts() }
-window.showCart=function(){ hideAll(); cart.classList.remove("hidden") }
-window.showLogin=function(){
-hideAll()
-login.classList.remove("hidden")
-login.innerHTML=`
-<h3>Login</h3>
-<input id="email" placeholder="Email">
-<input id="senha" type="password" placeholder="Senha">
-<button onclick="loginUser()">Entrar</button>
-<button onclick="registerUser()">Criar conta</button>
-`
-}
-
-window.showAdmin=function(){
-if(!isAdmin()){alert("Apenas admin");return}
-hideAll()
-admin.classList.remove("hidden")
-renderAdmin()
+function updateAdminBtn() {
+  if (isAdmin()) adminBtn.classList.remove("hidden");
+  else adminBtn.classList.add("hidden");
 }
 
 // ================= LOGIN =================
-window.loginUser=async function(){
-await signInWithEmailAndPassword(auth,email.value,senha.value)
+window.loginUser = async function () {
+  let loginInput = document.getElementById("email").value.trim().toLowerCase();
+  const senhaVal = document.getElementById("senha").value;
+
+  if (loginInput === "admin") {
+    loginInput = "admin@petrea.com";
+  }
+
+  await signInWithEmailAndPassword(auth, loginInput, senhaVal);
+};
+
+window.registerUser = async function () {
+  let loginInput = document.getElementById("email").value.trim().toLowerCase();
+  const senhaVal = document.getElementById("senha").value;
+
+  if (loginInput === "admin") {
+    alert("Usuário admin é reservado");
+    return;
+  }
+
+  if (!loginInput.includes("@")) {
+    loginInput = loginInput + "@cliente.com";
+  }
+
+  await createUserWithEmailAndPassword(auth, loginInput, senhaVal);
+};
+
+// ================= PRODUTOS =================
+async function loadProducts() {
+  const snap = await getDocs(collection(db, "products"));
+  products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-window.registerUser=async function(){
-await createUserWithEmailAndPassword(auth,email.value,senha.value)
+async function renderProducts() {
+  await loadProducts();
+  homeDiv.innerHTML = "";
+
+  if (products.length === 0) {
+    homeDiv.innerHTML = "<p>Nenhum produto cadastrado.</p>";
+    return;
+  }
+
+  products.forEach((p, i) => {
+    homeDiv.innerHTML += `
+      <div class="card">
+        <img src="${p.img || ''}">
+        <h3>${p.name}</h3>
+        <p>R$ ${p.price}</p>
+        <button onclick="openProduct(${i})">Ver produto</button>
+      </div>
+    `;
+  });
 }
+
+window.openProduct = function (i) {
+  const p = products[i];
+
+  productViewDiv.innerHTML = `
+    <button onclick="showHome()">⬅ Voltar</button>
+    <div class="card">
+      <img src="${p.img || ''}">
+      <h2>${p.name}</h2>
+      <p>${p.desc}</p>
+      <p>R$ ${p.price}</p>
+
+      <label>Cor</label>
+      <select id="color">
+        ${(p.colors || ["única"]).map(c => `<option>${c}</option>`).join("")}
+      </select>
+
+      <label>Quantidade</label>
+      <input type="number" id="qty" value="1" min="1">
+
+      <button onclick="addCart('${p.id}')">Adicionar ao carrinho</button>
+    </div>
+  `;
+
+  hideAll();
+  productViewDiv.classList.remove("hidden");
+};
+
+// ================= CARRINHO NUVEM =================
+async function loadCart() {
+  if (!user) {
+    cartItems = [];
+    return;
+  }
+
+  const ref = doc(db, "carts", user.uid);
+  const snap = await getDoc(ref);
+  cartItems = snap.exists() ? snap.data().items : [];
+}
+
+async function saveCart() {
+  if (!user) return;
+  await setDoc(doc(db, "carts", user.uid), { items: cartItems });
+}
+
+window.addCart = async function (id) {
+  if (!user) {
+    alert("Faça login");
+    return;
+  }
+
+  const p = products.find(x => x.id === id);
+
+  cartItems.push({
+    name: p.name,
+    price: p.price,
+    color: document.getElementById("color").value,
+    qty: Number(document.getElementById("qty").value)
+  });
+
+  await saveCart();
+  alert("Adicionado ao carrinho!");
+};
+
+function renderCart() {
+  cartDiv.innerHTML = `<button onclick="showHome()">⬅ Voltar</button>`;
+
+  let total = 0;
+
+  cartItems.forEach((c) => {
+    total += c.price * c.qty;
+    cartDiv.innerHTML += `
+      <div class="card">
+        <b>${c.name}</b><br>
+        Cor: ${c.color}<br>
+        Qtd: ${c.qty}<br>
+        Total: R$ ${c.price * c.qty}
+      </div>
+    `;
+  });
+
+  cartDiv.innerHTML += `<h3>Total: R$ ${total}</h3>`;
+}
+
+// ================= ADMIN =================
+window.renderAdmin = function () {
+  adminDiv.innerHTML = `
+    <button onclick="showHome()">⬅ Voltar</button>
+    <h3>Painel Admin</h3>
+
+    <input id="pn" placeholder="Nome">
+    <input id="pp" placeholder="Preço">
+    <input id="pd" placeholder="Descrição">
+    <input id="pc" placeholder="Cores">
+    <input id="pi" placeholder="URL da imagem">
+    <button onclick="addProduct()">Adicionar</button>
+
+    <div id="adminProducts"></div>
+  `;
+
+  renderAdminProducts();
+};
+
+window.addProduct = async function () {
+  await addDoc(collection(db, "products"), {
+    name: pn.value,
+    price: Number(pp.value),
+    desc: pd.value,
+    colors: pc.value.split(","),
+    img: pi.value
+  });
+
+  alert("Produto adicionado!");
+  renderAdminProducts();
+  renderProducts();
+};
+
+async function renderAdminProducts() {
+  const snap = await getDocs(collection(db, "products"));
+  adminProducts.innerHTML = "";
+
+  snap.forEach(d => {
+    adminProducts.innerHTML += `
+      <div class="card">
+        ${d.data().name}
+        <button onclick="deleteProduct('${d.id}')">Excluir</button>
+      </div>
+    `;
+  });
+}
+
+window.deleteProduct = async function (id) {
+  await deleteDoc(doc(db, "products", id));
+  renderAdminProducts();
+  renderProducts();
+};
 
 </script>
 
