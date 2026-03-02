@@ -22,7 +22,6 @@ img{max-width:100%;border-radius:6px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-
 </head>
 
 <body>
@@ -77,12 +76,47 @@ const adminBtn=document.getElementById("adminBtn")
 let products=JSON.parse(localStorage.getItem("products")||"[]")
 let user=JSON.parse(localStorage.getItem("user")||"null")
 
+let storeSettings={
+  name:"Pétrea Shop",
+  desc:"Calças, shorts, camisas, blusas e mais",
+  color:"#111",
+  whatsapp:"5534984449588"
+}
+
 // ================= UTIL =================
 function money(v){
   return Number(v).toFixed(2).replace(".",",")
 }
-
 function isAdmin(){ return user && user.admin===true }
+
+// ================= STORE SETTINGS (NUVEM) =================
+async function loadStoreSettings(){
+  const doc=await db.collection("store").doc("config").get()
+  if(doc.exists){ storeSettings=doc.data() }
+  applyStoreSettings()
+}
+
+function applyStoreSettings(){
+  document.getElementById("storeName").innerText=storeSettings.name
+  document.getElementById("storeDesc").innerText=storeSettings.desc
+  document.querySelector("header").style.background=storeSettings.color
+  document.querySelectorAll("button").forEach(b=>{
+    b.style.background=storeSettings.color
+  })
+}
+
+async function saveStoreSettings(){
+  if(!isAdmin()) return
+  storeSettings={
+    name:sn.value,
+    desc:sd.value,
+    color:sc.value,
+    whatsapp:sw.value
+  }
+  await db.collection("store").doc("config").set(storeSettings)
+  applyStoreSettings()
+  alert("Configurações salvas")
+}
 
 // ================= CARRINHO NUVEM =================
 async function getCart(){
@@ -156,17 +190,9 @@ function openProduct(i){
 
 async function addCart(i){
   if(!user){ alert("Faça login"); return }
-
   let cart=await getCart()
   const p=products[i]
-
-  cart.push({
-    name:p.name,
-    price:p.price,
-    color:color.value,
-    qty:Number(qty.value)
-  })
-
+  cart.push({name:p.name,price:p.price,color:color.value,qty:Number(qty.value)})
   await saveCart(cart)
   alert("Adicionado")
 }
@@ -216,19 +242,16 @@ async function clearCart(){
 
 async function checkout(){
   let cart=await getCart()
-
   let msg="🛒 *Pedido Pétrea Shop*%0A%0A"
   let total=0
-
   cart.forEach(c=>{
     total+=c.price*c.qty
     msg+=`• ${c.name}%0A`
     msg+=`Cor: ${c.color}%0A`
     msg+=`Qtd: ${c.qty}%0A%0A`
   })
-
   msg+=`💰 Total: R$ ${money(total)}`
-  window.open(`https://wa.me/5534984449588?text=${msg}`)
+  window.open(`https://wa.me/${storeSettings.whatsapp}?text=${msg}`)
 }
 
 // ================= LOGIN =================
@@ -242,20 +265,12 @@ login.innerHTML=`
 async function doLogin(){
   const email=u.value.trim()
   const pass=p.value.trim()
-
   try{
     const res=await auth.signInWithEmailAndPassword(email,pass)
-
-    user={
-      uid:res.user.uid,
-      name:email,
-      admin: email==="admin@petrea.com"
-    }
-
+    user={uid:res.user.uid,name:email,admin: email==="admin@petrea.com"}
     localStorage.setItem("user",JSON.stringify(user))
     updateAdminBtn()
     showHome()
-
   }catch(e){
     alert("Usuário não encontrado. Ative Email/Senha no Firebase.")
   }
@@ -272,6 +287,16 @@ function renderAdmin(){
   <button onclick="showHome()">⬅ Voltar</button>
   <h3>Painel Admin</h3>
 
+  <h4>⚙️ Configurações da Loja</h4>
+  <input id="sn" placeholder="Nome da loja" value="${storeSettings.name}">
+  <input id="sd" placeholder="Descrição" value="${storeSettings.desc}">
+  <input id="sc" type="color" value="${storeSettings.color}">
+  <input id="sw" placeholder="WhatsApp" value="${storeSettings.whatsapp}">
+  <button onclick="saveStoreSettings()">💾 Salvar configurações</button>
+
+  <hr>
+
+  <h4>📦 Produtos</h4>
   <input id="pn" placeholder="Nome">
   <input id="pp" placeholder="Preço">
   <input id="pd" placeholder="Descrição">
@@ -286,7 +311,6 @@ function renderAdmin(){
 
 function addProduct(){
   if(!isAdmin()){ alert("Somente admin"); return }
-
   const file=imgFile.files[0]
   if(!file){ alert("Selecione uma imagem"); return }
 
@@ -326,6 +350,7 @@ function deleteProduct(i){
 
 // ================= INIT =================
 updateAdminBtn()
+loadStoreSettings()
 showHome()
 </script>
 
