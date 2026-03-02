@@ -49,7 +49,6 @@ img{max-width:100%;border-radius:6px}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🔴 COLE SUAS CHAVES
 const firebaseConfig = {
   apiKey: "SUA_API_KEY",
   authDomain: "SEU_AUTH_DOMAIN",
@@ -70,7 +69,6 @@ let editId=null;
 const ADMIN_USER="admin";
 const ADMIN_PASS="Petrea2024";
 
-// NAV
 function hideAll(){
 home.classList.add("hidden");
 productView.classList.add("hidden");
@@ -218,11 +216,12 @@ renderAdminProducts();
 }
 
 async function saveProduct(){
-if(!isAdmin()) return;
+if(!isAdmin()) return alert("Somente admin");
+
 const data={
 name:pn.value,
 price:Number(pp.value),
-desc:pd.value,
+ desc:pd.value,
 colors:pc.value.split(","),
 img:currentImage
 };
@@ -242,16 +241,23 @@ renderAdmin();
 async function renderAdminProducts(){
 const snap=await getDocs(collection(db,"products"));
 adminProducts.innerHTML="";
+
 snap.forEach(d=>{
+// 🔒 BOTÕES SÓ PARA ADMIN
+if(isAdmin()){
 adminProducts.innerHTML+=`<div class="card">
 <b>${d.data().name}</b>
 <br><button onclick="editProduct('${d.id}')">Editar</button>
 <button onclick="deleteProduct('${d.id}')">Excluir</button>
 </div>`;
+}else{
+adminProducts.innerHTML+=`<div class="card"><b>${d.data().name}</b></div>`;
+}
 });
 }
 
 window.editProduct=function(id){
+if(!isAdmin()) return alert("Somente admin");
 const p=products.find(x=>x.id===id);
 pn.value=p.name; pp.value=p.price; pd.value=p.desc; pc.value=(p.colors||[]).join(",");
 currentImage=p.img; preview.src=p.img; preview.style.display="block";
@@ -260,6 +266,8 @@ window.scrollTo(0,0);
 }
 
 window.deleteProduct=async function(id){
+// 🔒 PROTEÇÃO REAL
+if(!isAdmin()) return alert("Somente admin pode excluir");
 if(!confirm("Excluir produto?")) return;
 await deleteDoc(doc(db,"products",id));
 loadProducts(); renderAdmin();
