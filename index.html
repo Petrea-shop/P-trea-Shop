@@ -7,33 +7,20 @@
 
 <style>
 body{font-family:Arial;margin:0;background:#f5f5f5}
-header{background:#ffe600;padding:15px;display:flex;justify-content:space-between}
+header{background:#ffe600;padding:15px;display:flex;justify-content:space-between;align-items:center}
 .logo{font-weight:bold;font-size:22px}
-.container{padding:20px}
 
-.products{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px}
+.controls{display:flex;gap:10px;padding:10px}
+input,select,button{padding:8px}
+
+.products{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px;padding:20px}
 .card{background:white;padding:10px;border-radius:8px;text-align:center;cursor:pointer}
 .card img{width:100%;height:180px;object-fit:cover}
 
-.price{font-weight:bold}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);justify-content:center;align-items:center}
+.modal-content{background:white;padding:20px;border-radius:8px;width:300px;text-align:center}
 
-.cartBtn{
-position:fixed;bottom:20px;right:20px;
-background:#3483fa;color:white;
-padding:12px;border-radius:50px;cursor:pointer
-}
-
-.modal{
-display:none;position:fixed;top:0;left:0;width:100%;height:100%;
-background:rgba(0,0,0,0.6);
-justify-content:center;align-items:center
-}
-
-.modal-content{
-background:white;padding:20px;border-radius:8px;width:300px;text-align:center
-}
-
-button{padding:8px;margin-top:5px;cursor:pointer}
+.cartBtn{position:fixed;bottom:20px;right:20px;background:#3483fa;color:white;padding:12px;border-radius:50px;cursor:pointer}
 </style>
 </head>
 
@@ -41,97 +28,240 @@ button{padding:8px;margin-top:5px;cursor:pointer}
 
 <header>
 <div class="logo">Pétrea Shop</div>
-<div onclick="openCart()" style="cursor:pointer">🛒 Carrinho</div>
+<div>
+<button onclick="openLogin()">Entrar</button>
+<button onclick="openRegister()">Cadastrar</button>
+<button onclick="logout()">Sair</button>
+</div>
 </header>
 
-<div class="container">
-<div class="products" id="products"></div>
+<div class="controls">
+<input id="search" placeholder="Buscar" oninput="renderProducts()">
+<select id="filter" onchange="renderProducts()">
+<option value="">Todas categorias</option>
+<option>Calça</option>
+<option>Camisa</option>
+<option>Short</option>
+<option>Acessório</option>
+</select>
 </div>
+
+<div id="products" class="products"></div>
 
 <div class="cartBtn" onclick="openCart()">🛒</div>
 
-<!-- Modal Produto -->
+<!-- LOGIN -->
+<div class="modal" id="loginModal">
+<div class="modal-content">
+<h3>Login</h3>
+<input id="loginUser" placeholder="Usuário">
+<input id="loginPass" type="password" placeholder="Senha">
+<button onclick="login()">Entrar</button>
+</div>
+</div>
+
+<!-- REGISTER -->
+<div class="modal" id="registerModal">
+<div class="modal-content">
+<h3>Cadastrar</h3>
+<input id="regUser" placeholder="Usuário">
+<input id="regPass" type="password" placeholder="Senha">
+<button onclick="register()">Criar conta</button>
+</div>
+</div>
+
+<!-- PRODUTO -->
 <div class="modal" id="productModal">
 <div class="modal-content">
-<img id="modalImg" style="width:100%;height:180px;object-fit:cover">
-<h3 id="modalName"></h3>
-<p id="modalPrice"></p>
+<img id="pImg" style="width:100%;height:180px;object-fit:cover">
+<h3 id="pName"></h3>
+<p id="pPrice"></p>
 
-<label>Cor:</label>
 <select id="color">
 <option>Branco</option>
 <option>Preto</option>
 <option>Vermelho</option>
 </select>
 
+<input type="number" id="qty" value="1" min="1">
+
 <button onclick="addToCart()">Adicionar ao carrinho</button>
-<button onclick="closeModal()">Fechar</button>
+<button onclick="toggleFav()">❤️ Favoritar</button>
 </div>
 </div>
 
-<!-- Modal Carrinho -->
+<!-- CARRINHO -->
 <div class="modal" id="cartModal">
 <div class="modal-content">
 <h3>Seu carrinho</h3>
 <div id="cartItems"></div>
-<button onclick="checkout()">Finalizar compra</button>
-<button onclick="closeCart()">Fechar</button>
+<h4 id="total"></h4>
+<button onclick="checkout()">Finalizar</button>
+<button onclick="clearCart()">Limpar carrinho</button>
+</div>
+</div>
+
+<!-- ADMIN -->
+<div class="modal" id="adminModal">
+<div class="modal-content">
+<h3>Novo produto</h3>
+<input id="name" placeholder="Nome">
+<input id="price" placeholder="Preço">
+<input id="image" placeholder="Imagem URL">
+<select id="category">
+<option>Calça</option>
+<option>Camisa</option>
+<option>Short</option>
+<option>Acessório</option>
+</select>
+<button onclick="addProduct()">Salvar</button>
 </div>
 </div>
 
 <script>
+const ADMIN_USER="admin";
+const ADMIN_PASS="Petrea2024";
+
+let users=JSON.parse(localStorage.getItem("users")||"[]");
 let products=JSON.parse(localStorage.getItem("products")||"[]");
-let cart=JSON.parse(localStorage.getItem("cart")||"[]");
+let currentUser=localStorage.getItem("currentUser");
+let carts=JSON.parse(localStorage.getItem("carts")||"{}");
+let orders=JSON.parse(localStorage.getItem("orders")||"{}");
+let favs=JSON.parse(localStorage.getItem("favs")||"{}");
+
+if(!carts[currentUser]) carts[currentUser]=[];
+if(!orders[currentUser]) orders[currentUser]=[];
+if(!favs[currentUser]) favs[currentUser]=[];
+
 let selectedProduct=null;
 
 function renderProducts(){
+const search=document.getElementById("search").value.toLowerCase();
+const filter=document.getElementById("filter").value;
+
 const container=document.getElementById("products");
 container.innerHTML="";
-products.forEach((p,i)=>{
+
+products.filter(p=>{
+return (!filter||p.category===filter)&&p.name.toLowerCase().includes(search);
+}).forEach((p,i)=>{
 container.innerHTML+=`
 <div class="card" onclick="openProduct(${i})">
 <img src="${p.image}">
 <div>${p.name}</div>
-<div class="price">R$ ${p.price}</div>
+<div>R$ ${p.price}</div>
+<div>${p.category}</div>
 </div>`;
 });
 }
 
-function openProduct(index){
-selectedProduct=products[index];
-document.getElementById("modalImg").src=selectedProduct.image;
-document.getElementById("modalName").innerText=selectedProduct.name;
-document.getElementById("modalPrice").innerText="R$ "+selectedProduct.price;
+function openProduct(i){
+selectedProduct=products[i];
+document.getElementById("pImg").src=selectedProduct.image;
+document.getElementById("pName").innerText=selectedProduct.name;
+document.getElementById("pPrice").innerText="R$ "+selectedProduct.price;
 document.getElementById("productModal").style.display="flex";
 }
 
-function closeModal(){document.getElementById("productModal").style.display="none"}
-
 function addToCart(){
 const color=document.getElementById("color").value;
-cart.push({...selectedProduct,color});
-localStorage.setItem("cart",JSON.stringify(cart));
-alert("Produto adicionado!");
-closeModal();
+const qty=document.getElementById("qty").value;
+carts[currentUser].push({...selectedProduct,color,qty});
+localStorage.setItem("carts",JSON.stringify(carts));
+alert("Adicionado!");
 }
 
 function openCart(){
-const container=document.getElementById("cartItems");
-container.innerHTML="";
-cart.forEach(item=>{
-container.innerHTML+=`<div>${item.name} - ${item.color} - R$ ${item.price}</div>`;
+const list=document.getElementById("cartItems");
+list.innerHTML="";
+let total=0;
+
+carts[currentUser].forEach((item,i)=>{
+total+=item.price*item.qty;
+list.innerHTML+=`
+<div>
+${item.name} (${item.color}) x${item.qty}
+<button onclick="removeItem(${i})">❌</button>
+</div>`;
 });
+
+document.getElementById("total").innerText="Total: R$ "+total;
 document.getElementById("cartModal").style.display="flex";
 }
 
-function closeCart(){document.getElementById("cartModal").style.display="none"}
+function removeItem(i){
+carts[currentUser].splice(i,1);
+localStorage.setItem("carts",JSON.stringify(carts));
+openCart();
+}
+
+function clearCart(){
+carts[currentUser]=[];
+localStorage.setItem("carts",JSON.stringify(carts));
+openCart();
+}
 
 function checkout(){
+orders[currentUser].push(carts[currentUser]);
+localStorage.setItem("orders",JSON.stringify(orders));
+
 let text="Pedido:%0A";
-cart.forEach(p=>{
-text+=`• ${p.name} (${p.color}) - R$ ${p.price}%0A`;
+carts[currentUser].forEach(p=>{
+text+=`• ${p.name} (${p.color}) x${p.qty}%0A`;
 });
 window.open("https://wa.me/5534984449588?text="+text);
+clearCart();
+}
+
+function toggleFav(){
+favs[currentUser].push(selectedProduct);
+localStorage.setItem("favs",JSON.stringify(favs));
+alert("Favoritado!");
+}
+
+function openLogin(){document.getElementById("loginModal").style.display="flex"}
+function openRegister(){document.getElementById("registerModal").style.display="flex"}
+
+function login(){
+const u=document.getElementById("loginUser").value;
+const p=document.getElementById("loginPass").value;
+
+if(u===ADMIN_USER && p===ADMIN_PASS){
+currentUser="admin";
+document.getElementById("adminModal").style.display="flex";
+}else{
+const found=users.find(x=>x.user===u && x.pass===p);
+if(found) currentUser=u;
+else return alert("Login inválido");
+}
+
+localStorage.setItem("currentUser",currentUser);
+location.reload();
+}
+
+function register(){
+const u=document.getElementById("regUser").value;
+const p=document.getElementById("regPass").value;
+users.push({user:u,pass:p});
+localStorage.setItem("users",JSON.stringify(users));
+alert("Conta criada");
+location.reload();
+}
+
+function logout(){
+localStorage.removeItem("currentUser");
+location.reload();
+}
+
+function addProduct(){
+products.push({
+name:document.getElementById("name").value,
+price:parseFloat(document.getElementById("price").value),
+image:document.getElementById("image").value,
+category:document.getElementById("category").value
+});
+localStorage.setItem("products",JSON.stringify(products));
+location.reload();
 }
 
 renderProducts();
