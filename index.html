@@ -43,12 +43,19 @@ img{max-width:100%;border-radius:6px}
 </div>
 
 <script>
+
+// --------- DADOS ---------
 let products=JSON.parse(localStorage.getItem("products")||"[]")
 let cart=JSON.parse(localStorage.getItem("cart")||"[]")
 let user=JSON.parse(localStorage.getItem("user")||"null")
 
 const ADMIN_USER="admin"
 const ADMIN_PASS="Petrea2024"
+
+// --------- PERMISSÃO ---------
+function isAdmin(){
+return user && user.admin===true
+}
 
 // --------- NAV ---------
 function hideAll(){
@@ -77,12 +84,16 @@ login.classList.remove("hidden")
 }
 
 function showAdmin(){
+if(!isAdmin()){
+alert("Acesso apenas para administrador")
+return
+}
 hideAll()
 admin.classList.remove("hidden")
 renderAdmin()
 }
 
-// --------- PRODUCTS ---------
+// --------- PRODUTOS ---------
 function renderProducts(){
 home.innerHTML=""
 products.forEach((p,i)=>{
@@ -132,13 +143,13 @@ localStorage.setItem("cart",JSON.stringify(cart))
 alert("Adicionado ao carrinho")
 }
 
-// --------- CART ---------
+// --------- CARRINHO ---------
 const cartDiv=document.getElementById("cart")
 
 function renderCart(){
 cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
 let total=0
-cart.forEach((c,i)=>{
+cart.forEach(c=>{
 total+=c.price*c.qty
 cartDiv.innerHTML+=`
 <div class="card">
@@ -170,14 +181,21 @@ function doLogin(){
 if(u.value===ADMIN_USER && p.value===ADMIN_PASS){
 user={admin:true}
 localStorage.setItem("user",JSON.stringify(user))
-adminBtn.classList.remove("hidden")
 alert("Admin logado")
-showHome()
 }else{
 user={admin:false,name:u.value}
 localStorage.setItem("user",JSON.stringify(user))
-alert("Logado")
+alert("Usuário logado")
+}
+updateAdminBtn()
 showHome()
+}
+
+function updateAdminBtn(){
+if(isAdmin()){
+adminBtn.classList.remove("hidden")
+}else{
+adminBtn.classList.add("hidden")
 }
 }
 
@@ -207,11 +225,16 @@ renderAdminProducts()
 }
 
 function saveStore(){
+if(!isAdmin()) return
 storeName.innerText=storeNameInput.value
 storeDesc.innerText=storeDescInput.value
 }
 
 function addProduct(){
+if(!isAdmin()){
+alert("Somente admin pode adicionar")
+return
+}
 const file=imgFile.files[0]
 const reader=new FileReader()
 reader.onload=function(e){
@@ -241,6 +264,10 @@ ${p.name}
 }
 
 function deleteProduct(i){
+if(!isAdmin()){
+alert("Somente admin pode excluir")
+return
+}
 products.splice(i,1)
 localStorage.setItem("products",JSON.stringify(products))
 renderAdminProducts()
@@ -248,8 +275,9 @@ renderProducts()
 }
 
 // -------- INIT --------
-if(user?.admin) adminBtn.classList.remove("hidden")
+updateAdminBtn()
 showHome()
+
 </script>
 
 </body>
