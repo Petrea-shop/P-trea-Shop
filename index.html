@@ -18,7 +18,7 @@ img{max-width:100%;border-radius:6px}
 .qty{width:60px}
 </style>
 
-<!-- 🔥 FIREBASE (GRÁTIS) -->
+<!-- 🔥 FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -73,7 +73,7 @@ const admin=document.getElementById("admin")
 const adminBtn=document.getElementById("adminBtn")
 
 // ================= DADOS =================
-let products=JSON.parse(localStorage.getItem("products")||"[]")
+let products=[]
 let user=JSON.parse(localStorage.getItem("user")||"null")
 
 let storeSettings={
@@ -89,10 +89,10 @@ function money(v){
 }
 function isAdmin(){ return user && user.admin===true }
 
-// ================= STORE SETTINGS (NUVEM) =================
+// ================= STORE SETTINGS =================
 async function loadStoreSettings(){
   const doc=await db.collection("store").doc("config").get()
-  if(doc.exists){ storeSettings=doc.data() }
+  if(doc.exists) storeSettings=doc.data()
   applyStoreSettings()
 }
 
@@ -118,7 +118,17 @@ async function saveStoreSettings(){
   alert("Configurações salvas")
 }
 
-// ================= CARRINHO NUVEM =================
+// ================= PRODUTOS NUVEM =================
+async function loadProducts(){
+  const snap=await db.collection("products").get()
+  products=[]
+  snap.forEach(doc=>{
+    products.push({id:doc.id,...doc.data()})
+  })
+  renderProducts()
+}
+
+// ================= CARRINHO =================
 async function getCart(){
   if(!user) return []
   const doc=await db.collection("carts").doc(user.uid).get()
@@ -152,7 +162,7 @@ function showAdmin(){
   hideAll(); admin.classList.remove("hidden"); renderAdmin()
 }
 
-// ================= PRODUTOS =================
+// ================= PRODUTOS UI =================
 function renderProducts(){
   home.innerHTML=""
   products.forEach((p,i)=>{
@@ -197,7 +207,7 @@ async function addCart(i){
   alert("Adicionado")
 }
 
-// ================= CARRINHO =================
+// ================= CARRINHO UI =================
 async function renderCart(){
   let cart=await getCart()
   cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
@@ -309,23 +319,23 @@ function renderAdmin(){
   renderAdminProducts()
 }
 
-function addProduct(){
+async function addProduct(){
   if(!isAdmin()){ alert("Somente admin"); return }
   const file=imgFile.files[0]
   if(!file){ alert("Selecione uma imagem"); return }
 
   const reader=new FileReader()
-  reader.onload=e=>{
-    products.push({
+  reader.onload=async e=>{
+    await db.collection("products").add({
       name:pn.value,
       price:Number(pp.value),
       desc:pd.value,
       colors:pc.value.split(","),
-      img:e.target.result
+      img:e.target.result,
+      createdAt:Date.now()
     })
-    localStorage.setItem("products",JSON.stringify(products))
+    await loadProducts()
     renderAdminProducts()
-    renderProducts()
   }
   reader.readAsDataURL(file)
 }
@@ -340,18 +350,22 @@ function renderAdminProducts(){
   })
 }
 
-function deleteProduct(i){
+async function deleteProduct(i){
   if(!isAdmin()) return
-  products.splice(i,1)
-  localStorage.setItem("products",JSON.stringify(products))
+  const id=products[i].id
+  await db.collection("products").doc(id).delete()
+  await loadProducts()
   renderAdminProducts()
-  renderProducts()
 }
 
 // ================= INIT =================
-updateAdminBtn()
-loadStoreSettings()
-showHome()
+async function init(){
+  updateAdminBtn()
+  await loadStoreSettings()
+  await loadProducts()
+  showHome()
+}
+init()
 </script>
 
 </body>
