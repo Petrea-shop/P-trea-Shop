@@ -17,16 +17,11 @@ img{max-width:100%;border-radius:6px}
 .topbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
 .qty{width:60px}
 </style>
-
-<!-- 🔥 FIREBASE -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 </head>
 
 <body>
 
-<header>
+<header id="headerBar">
 <h2 id="storeName">Pétrea Shop</h2>
 <p id="storeDesc">Calças, shorts, camisas, blusas e mais</p>
 </header>
@@ -48,324 +43,202 @@ img{max-width:100%;border-radius:6px}
 
 </div>
 
-<script>
-// ================= FIREBASE CONFIG =================
-// ⚠️ SUBSTITUA PELAS SUAS CHAVES
+<!-- FIREBASE SDK -->
+<script type="module">
+
+// 🔴 COLE SEU firebaseConfig AQUI
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
+setDoc, getDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+getAuth, signInWithEmailAndPassword,
+createUserWithEmailAndPassword, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
 const firebaseConfig = {
-  apiKey: "SUA_KEY",
-  authDomain: "SEU_DOMINIO",
-  projectId: "SEU_PROJECT_ID",
-  storageBucket: "SEU_BUCKET",
-  messagingSenderId: "SEU_ID",
-  appId: "SEU_APP_ID"
+  // 🔥 COLE AQUI SEU CONFIG
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-// ================= ELEMENTOS =================
-const home=document.getElementById("home")
-const productView=document.getElementById("productView")
-const cartDiv=document.getElementById("cart")
-const login=document.getElementById("login")
-const admin=document.getElementById("admin")
-const adminBtn=document.getElementById("adminBtn")
-
-// ================= DADOS =================
+// ================= ESTADO =================
 let products=[]
-let user=JSON.parse(localStorage.getItem("user")||"null")
+let user=null
+let settings={}
 
-let storeSettings={
-  name:"Pétrea Shop",
-  desc:"Calças, shorts, camisas, blusas e mais",
-  color:"#111",
-  whatsapp:"5534984449588"
-}
+// ================= AUTH =================
+onAuthStateChanged(auth, async (u)=>{
+user=u
+updateAdminBtn()
+await loadCart()
+showHome()
+})
 
-// ================= UTIL =================
-function money(v){
-  return Number(v).toFixed(2).replace(".",",")
-}
-function isAdmin(){ return user && user.admin===true }
-
-// ================= STORE SETTINGS =================
-async function loadStoreSettings(){
-  const doc=await db.collection("store").doc("config").get()
-  if(doc.exists) storeSettings=doc.data()
-  applyStoreSettings()
-}
-
-function applyStoreSettings(){
-  document.getElementById("storeName").innerText=storeSettings.name
-  document.getElementById("storeDesc").innerText=storeSettings.desc
-  document.querySelector("header").style.background=storeSettings.color
-  document.querySelectorAll("button").forEach(b=>{
-    b.style.background=storeSettings.color
-  })
-}
-
-async function saveStoreSettings(){
-  if(!isAdmin()) return
-  storeSettings={
-    name:sn.value,
-    desc:sd.value,
-    color:sc.value,
-    whatsapp:sw.value
-  }
-  await db.collection("store").doc("config").set(storeSettings)
-  applyStoreSettings()
-  alert("Configurações salvas")
-}
-
-// ================= PRODUTOS NUVEM =================
+// ================= PRODUTOS =================
 async function loadProducts(){
-  const snap=await db.collection("products").get()
-  products=[]
-  snap.forEach(doc=>{
-    products.push({id:doc.id,...doc.data()})
-  })
-  renderProducts()
+const snap=await getDocs(collection(db,"products"))
+products=snap.docs.map(d=>({id:d.id,...d.data()}))
 }
 
-// ================= CARRINHO =================
-async function getCart(){
-  if(!user) return []
-  const doc=await db.collection("carts").doc(user.uid).get()
-  if(!doc.exists) return []
-  return doc.data().items || []
+async function renderProducts(){
+await loadProducts()
+home.innerHTML=""
+
+products.forEach((p,i)=>{
+home.innerHTML+=`
+<div class="card">
+<img src="${p.img||''}">
+<h3>${p.name}</h3>
+<p>R$ ${p.price}</p>
+<button onclick="openProduct(${i})">Ver produto</button>
+</div>`
+})
 }
 
-async function saveCart(cart){
-  if(!user) return
-  await db.collection("carts").doc(user.uid).set({
-    items:cart,
-    updatedAt:Date.now()
-  })
+window.openProduct=function(i){
+const p=products[i]
+productView.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<div class="card">
+<img src="${p.img||''}">
+<h2>${p.name}</h2>
+<p>${p.desc}</p>
+<p>R$ ${p.price}</p>
+
+<label>Cor</label>
+<select id="color">${(p.colors||["única"]).map(c=>`<option>${c}</option>`).join("")}</select>
+
+<label>Quantidade</label>
+<input type="number" id="qty" value="1" min="1">
+
+<button onclick="addCart('${p.id}')">Adicionar ao carrinho</button>
+</div>`
+hideAll()
+productView.classList.remove("hidden")
 }
 
-// ================= NAV =================
-function hideAll(){
-  home.classList.add("hidden")
-  productView.classList.add("hidden")
-  cartDiv.classList.add("hidden")
-  login.classList.add("hidden")
-  admin.classList.add("hidden")
+// ================= CARRINHO NUVEM =================
+async function loadCart(){
+if(!user) return
+const ref=doc(db,"carts",user.uid)
+const snap=await getDoc(ref)
+window.cart=snap.exists()?snap.data().items:[]
 }
 
-function showHome(){ hideAll(); home.classList.remove("hidden"); renderProducts() }
-function showCart(){ hideAll(); cartDiv.classList.remove("hidden"); renderCart() }
-function showLogin(){ hideAll(); login.classList.remove("hidden") }
-
-function showAdmin(){
-  if(!isAdmin()){ alert("Acesso apenas admin"); return }
-  hideAll(); admin.classList.remove("hidden"); renderAdmin()
+async function saveCart(){
+if(!user) return
+await setDoc(doc(db,"carts",user.uid),{items:window.cart})
 }
 
-// ================= PRODUTOS UI =================
-function renderProducts(){
-  home.innerHTML=""
-  products.forEach((p,i)=>{
-    home.innerHTML+=`
-    <div class="card">
-    <img src="${p.img}">
-    <h3>${p.name}</h3>
-    <p>R$ ${money(p.price)}</p>
-    <button onclick="openProduct(${i})">Ver produto</button>
-    </div>`
-  })
-}
-
-function openProduct(i){
-  const p=products[i]
-  productView.innerHTML=`
-  <button onclick="showHome()">⬅ Voltar</button>
-  <div class="card">
-  <img src="${p.img}">
-  <h2>${p.name}</h2>
-  <p>${p.desc}</p>
-  <p>R$ ${money(p.price)}</p>
-
-  <label>Cor</label>
-  <select id="color">${p.colors.map(c=>`<option>${c}</option>`).join("")}</select>
-
-  <label>Quantidade</label>
-  <input type="number" id="qty" value="1" min="1">
-
-  <button onclick="addCart(${i})">Adicionar ao carrinho</button>
-  </div>`
-  hideAll()
-  productView.classList.remove("hidden")
-}
-
-async function addCart(i){
-  if(!user){ alert("Faça login"); return }
-  let cart=await getCart()
-  const p=products[i]
-  cart.push({name:p.name,price:p.price,color:color.value,qty:Number(qty.value)})
-  await saveCart(cart)
-  alert("Adicionado")
-}
-
-// ================= CARRINHO UI =================
-async function renderCart(){
-  let cart=await getCart()
-  cartDiv.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`
-  let total=0
-
-  cart.forEach((c,i)=>{
-    total+=c.price*c.qty
-    cartDiv.innerHTML+=`
-    <div class="card">
-    <b>${c.name}</b><br>
-    Cor: ${c.color}<br>
-    Qtd: <input class="qty" type="number" value="${c.qty}" min="1" onchange="updateQty(${i},this.value)">
-    <br>Total: R$ ${money(c.price*c.qty)}
-    <br><button onclick="removeItem(${i})">Remover</button>
-    </div>`
-  })
-
-  cartDiv.innerHTML+=`
-  <h3>Total: R$ ${money(total)}</h3>
-  <button onclick="clearCart()">🗑 Limpar carrinho</button>
-  <button onclick="checkout()">Finalizar no WhatsApp</button>`
-}
-
-async function updateQty(i,val){
-  let cart=await getCart()
-  cart[i].qty=Number(val)
-  await saveCart(cart)
-  renderCart()
-}
-
-async function removeItem(i){
-  let cart=await getCart()
-  cart.splice(i,1)
-  await saveCart(cart)
-  renderCart()
-}
-
-async function clearCart(){
-  await saveCart([])
-  renderCart()
-}
-
-async function checkout(){
-  let cart=await getCart()
-  let msg="🛒 *Pedido Pétrea Shop*%0A%0A"
-  let total=0
-  cart.forEach(c=>{
-    total+=c.price*c.qty
-    msg+=`• ${c.name}%0A`
-    msg+=`Cor: ${c.color}%0A`
-    msg+=`Qtd: ${c.qty}%0A%0A`
-  })
-  msg+=`💰 Total: R$ ${money(total)}`
-  window.open(`https://wa.me/${storeSettings.whatsapp}?text=${msg}`)
-}
-
-// ================= LOGIN =================
-login.innerHTML=`
-<h3>Login</h3>
-<input id="u" placeholder="Email">
-<input id="p" type="password" placeholder="Senha">
-<button onclick="doLogin()">Entrar</button>
-`
-
-async function doLogin(){
-  const email=u.value.trim()
-  const pass=p.value.trim()
-  try{
-    const res=await auth.signInWithEmailAndPassword(email,pass)
-    user={uid:res.user.uid,name:email,admin: email==="admin@petrea.com"}
-    localStorage.setItem("user",JSON.stringify(user))
-    updateAdminBtn()
-    showHome()
-  }catch(e){
-    alert("Usuário não encontrado. Ative Email/Senha no Firebase.")
-  }
-}
-
-function updateAdminBtn(){
-  if(isAdmin()) adminBtn.classList.remove("hidden")
-  else adminBtn.classList.add("hidden")
+window.addCart=async function(id){
+if(!user){alert("Faça login");return}
+const p=products.find(x=>x.id===id)
+window.cart.push({name:p.name,price:p.price,color:color.value,qty:Number(qty.value)})
+await saveCart()
+alert("Adicionado")
 }
 
 // ================= ADMIN =================
-function renderAdmin(){
-  admin.innerHTML=`
-  <button onclick="showHome()">⬅ Voltar</button>
-  <h3>Painel Admin</h3>
-
-  <h4>⚙️ Configurações da Loja</h4>
-  <input id="sn" placeholder="Nome da loja" value="${storeSettings.name}">
-  <input id="sd" placeholder="Descrição" value="${storeSettings.desc}">
-  <input id="sc" type="color" value="${storeSettings.color}">
-  <input id="sw" placeholder="WhatsApp" value="${storeSettings.whatsapp}">
-  <button onclick="saveStoreSettings()">💾 Salvar configurações</button>
-
-  <hr>
-
-  <h4>📦 Produtos</h4>
-  <input id="pn" placeholder="Nome">
-  <input id="pp" placeholder="Preço">
-  <input id="pd" placeholder="Descrição">
-  <input id="pc" placeholder="Cores ex: branco,preto">
-  <input type="file" id="imgFile">
-  <button onclick="addProduct()">Adicionar</button>
-
-  <div id="adminProducts"></div>
-  `
-  renderAdminProducts()
+function isAdmin(){
+return user && user.email==="admin@petrea.com"
 }
 
-async function addProduct(){
-  if(!isAdmin()){ alert("Somente admin"); return }
-  const file=imgFile.files[0]
-  if(!file){ alert("Selecione uma imagem"); return }
-
-  const reader=new FileReader()
-  reader.onload=async e=>{
-    await db.collection("products").add({
-      name:pn.value,
-      price:Number(pp.value),
-      desc:pd.value,
-      colors:pc.value.split(","),
-      img:e.target.result,
-      createdAt:Date.now()
-    })
-    await loadProducts()
-    renderAdminProducts()
-  }
-  reader.readAsDataURL(file)
+function updateAdminBtn(){
+if(isAdmin()) adminBtn.classList.remove("hidden")
+else adminBtn.classList.add("hidden")
 }
 
-function renderAdminProducts(){
-  adminProducts.innerHTML=""
-  products.forEach((p,i)=>{
-    adminProducts.innerHTML+=`
-    <div class="card">${p.name}
-    <button onclick="deleteProduct(${i})">Excluir</button>
-    </div>`
-  })
+window.renderAdmin=async function(){
+admin.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<h3>Painel Admin</h3>
+
+<input id="pn" placeholder="Nome">
+<input id="pp" placeholder="Preço">
+<input id="pd" placeholder="Descrição">
+<input id="pc" placeholder="Cores">
+<input id="pi" placeholder="URL da imagem">
+<button onclick="addProduct()">Adicionar</button>
+
+<div id="adminProducts"></div>
+`
+renderAdminProducts()
 }
 
-async function deleteProduct(i){
-  if(!isAdmin()) return
-  const id=products[i].id
-  await db.collection("products").doc(id).delete()
-  await loadProducts()
-  renderAdminProducts()
+window.addProduct=async function(){
+await addDoc(collection(db,"products"),{
+name:pn.value,
+price:Number(pp.value),
+desc:pd.value,
+colors:pc.value.split(","),
+img:pi.value
+})
+alert("Produto adicionado!")
+renderAdminProducts()
+renderProducts()
 }
 
-// ================= INIT =================
-async function init(){
-  updateAdminBtn()
-  await loadStoreSettings()
-  await loadProducts()
-  showHome()
+async function renderAdminProducts(){
+const snap=await getDocs(collection(db,"products"))
+adminProducts.innerHTML=""
+snap.forEach(d=>{
+adminProducts.innerHTML+=`
+<div class="card">
+${d.data().name}
+<button onclick="deleteProduct('${d.id}')">Excluir</button>
+</div>`
+})
 }
-init()
+
+window.deleteProduct=async function(id){
+await deleteDoc(doc(db,"products",id))
+renderAdminProducts()
+renderProducts()
+}
+
+// ================= NAV =================
+window.hideAll=function(){
+home.classList.add("hidden")
+productView.classList.add("hidden")
+cart.classList.add("hidden")
+login.classList.add("hidden")
+admin.classList.add("hidden")
+}
+
+window.showHome=function(){ hideAll(); home.classList.remove("hidden"); renderProducts() }
+window.showCart=function(){ hideAll(); cart.classList.remove("hidden") }
+window.showLogin=function(){
+hideAll()
+login.classList.remove("hidden")
+login.innerHTML=`
+<h3>Login</h3>
+<input id="email" placeholder="Email">
+<input id="senha" type="password" placeholder="Senha">
+<button onclick="loginUser()">Entrar</button>
+<button onclick="registerUser()">Criar conta</button>
+`
+}
+
+window.showAdmin=function(){
+if(!isAdmin()){alert("Apenas admin");return}
+hideAll()
+admin.classList.remove("hidden")
+renderAdmin()
+}
+
+// ================= LOGIN =================
+window.loginUser=async function(){
+await signInWithEmailAndPassword(auth,email.value,senha.value)
+}
+
+window.registerUser=async function(){
+await createUserWithEmailAndPassword(auth,email.value,senha.value)
+}
+
 </script>
 
 </body>
