@@ -7,18 +7,33 @@
 
 <style>
 body{font-family:Arial;margin:0;background:#f5f5f5}
-header{background:#ffe600;padding:15px;display:flex;justify-content:space-between;align-items:center}
-.logo{font-size:22px;font-weight:bold}
+header{background:#ffe600;padding:15px;display:flex;justify-content:space-between}
+.logo{font-weight:bold;font-size:22px}
 .container{padding:20px}
+
 .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px}
-.card{background:white;border-radius:8px;padding:10px;text-align:center;box-shadow:0 2px 5px rgba(0,0,0,0.1)}
+.card{background:white;padding:10px;border-radius:8px;text-align:center;cursor:pointer}
 .card img{width:100%;height:180px;object-fit:cover}
-.price{font-weight:bold;margin:5px 0}
-.admin-panel{display:none;background:white;padding:15px;margin:20px;border-radius:8px}
-.login-box{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);justify-content:center;align-items:center}
-.login-content{background:white;padding:20px;border-radius:8px;width:260px}
-input{width:100%;margin:5px 0;padding:8px}
-.cart{position:fixed;right:20px;bottom:20px;background:#3483fa;color:white;padding:12px;border-radius:50px;cursor:pointer}
+
+.price{font-weight:bold}
+
+.cartBtn{
+position:fixed;bottom:20px;right:20px;
+background:#3483fa;color:white;
+padding:12px;border-radius:50px;cursor:pointer
+}
+
+.modal{
+display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+background:rgba(0,0,0,0.6);
+justify-content:center;align-items:center
+}
+
+.modal-content{
+background:white;padding:20px;border-radius:8px;width:300px;text-align:center
+}
+
+button{padding:8px;margin-top:5px;cursor:pointer}
 </style>
 </head>
 
@@ -26,59 +41,55 @@ input{width:100%;margin:5px 0;padding:8px}
 
 <header>
 <div class="logo">Pétrea Shop</div>
-<div>
-<button onclick="openLogin()">Entrar</button>
-<button onclick="openRegister()">Cadastrar</button>
-<button id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
-</div>
+<div onclick="openCart()" style="cursor:pointer">🛒 Carrinho</div>
 </header>
 
 <div class="container">
 <div class="products" id="products"></div>
 </div>
 
-<div class="admin-panel" id="adminPanel">
-<h3>Painel Admin</h3>
-<input id="name" placeholder="Nome do produto">
-<input id="price" placeholder="Preço">
-<input id="image" placeholder="URL da imagem">
-<button onclick="addProduct()">Salvar Produto</button>
-</div>
+<div class="cartBtn" onclick="openCart()">🛒</div>
 
-<div class="login-box" id="loginBox">
-<div class="login-content">
-<h3>Login</h3>
-<input id="loginUser" placeholder="Usuário">
-<input id="loginPass" type="password" placeholder="Senha">
-<button onclick="login()">Entrar</button>
-</div>
-</div>
+<!-- Modal Produto -->
+<div class="modal" id="productModal">
+<div class="modal-content">
+<img id="modalImg" style="width:100%;height:180px;object-fit:cover">
+<h3 id="modalName"></h3>
+<p id="modalPrice"></p>
 
-<div class="login-box" id="registerBox">
-<div class="login-content">
-<h3>Cadastrar</h3>
-<input id="regUser" placeholder="Usuário">
-<input id="regPass" type="password" placeholder="Senha">
-<button onclick="register()">Criar Conta</button>
+<label>Cor:</label>
+<select id="color">
+<option>Branco</option>
+<option>Preto</option>
+<option>Vermelho</option>
+</select>
+
+<button onclick="addToCart()">Adicionar ao carrinho</button>
+<button onclick="closeModal()">Fechar</button>
 </div>
 </div>
 
-<div class="cart" onclick="checkout()">🛒 Finalizar</div>
+<!-- Modal Carrinho -->
+<div class="modal" id="cartModal">
+<div class="modal-content">
+<h3>Seu carrinho</h3>
+<div id="cartItems"></div>
+<button onclick="checkout()">Finalizar compra</button>
+<button onclick="closeCart()">Fechar</button>
+</div>
+</div>
 
 <script>
-const ADMIN_USER="admin";
-const ADMIN_PASS="Petrea2024";
-
-let users=JSON.parse(localStorage.getItem("users")||"[]");
 let products=JSON.parse(localStorage.getItem("products")||"[]");
-let currentUser=localStorage.getItem("currentUser");
+let cart=JSON.parse(localStorage.getItem("cart")||"[]");
+let selectedProduct=null;
 
 function renderProducts(){
 const container=document.getElementById("products");
 container.innerHTML="";
-products.forEach(p=>{
+products.forEach((p,i)=>{
 container.innerHTML+=`
-<div class="card">
+<div class="card" onclick="openProduct(${i})">
 <img src="${p.image}">
 <div>${p.name}</div>
 <div class="price">R$ ${p.price}</div>
@@ -86,69 +97,41 @@ container.innerHTML+=`
 });
 }
 
-function openLogin(){document.getElementById("loginBox").style.display="flex"}
-function openRegister(){document.getElementById("registerBox").style.display="flex"}
-
-function login(){
-const user=document.getElementById("loginUser").value;
-const pass=document.getElementById("loginPass").value;
-
-if(user===ADMIN_USER && pass===ADMIN_PASS){
-localStorage.setItem("currentUser","admin");
-showAdmin();
-}else{
-const found=users.find(u=>u.user===user && u.pass===pass);
-if(found){
-localStorage.setItem("currentUser",user);
-}else{
-alert("Login inválido");
-return;
-}
-}
-location.reload();
+function openProduct(index){
+selectedProduct=products[index];
+document.getElementById("modalImg").src=selectedProduct.image;
+document.getElementById("modalName").innerText=selectedProduct.name;
+document.getElementById("modalPrice").innerText="R$ "+selectedProduct.price;
+document.getElementById("productModal").style.display="flex";
 }
 
-function register(){
-const user=document.getElementById("regUser").value;
-const pass=document.getElementById("regPass").value;
-users.push({user,pass});
-localStorage.setItem("users",JSON.stringify(users));
-alert("Conta criada!");
-location.reload();
+function closeModal(){document.getElementById("productModal").style.display="none"}
+
+function addToCart(){
+const color=document.getElementById("color").value;
+cart.push({...selectedProduct,color});
+localStorage.setItem("cart",JSON.stringify(cart));
+alert("Produto adicionado!");
+closeModal();
 }
 
-function logout(){
-localStorage.removeItem("currentUser");
-location.reload();
+function openCart(){
+const container=document.getElementById("cartItems");
+container.innerHTML="";
+cart.forEach(item=>{
+container.innerHTML+=`<div>${item.name} - ${item.color} - R$ ${item.price}</div>`;
+});
+document.getElementById("cartModal").style.display="flex";
 }
 
-function showAdmin(){
-document.getElementById("adminPanel").style.display="block";
-}
-
-function addProduct(){
-const name=document.getElementById("name").value;
-const price=document.getElementById("price").value;
-const image=document.getElementById("image").value;
-
-products.push({name,price,image});
-localStorage.setItem("products",JSON.stringify(products));
-renderProducts();
-}
+function closeCart(){document.getElementById("cartModal").style.display="none"}
 
 function checkout(){
-let text="Olá, quero comprar:%0A";
-products.forEach(p=>{
-text+=`• ${p.name} - R$ ${p.price}%0A`;
+let text="Pedido:%0A";
+cart.forEach(p=>{
+text+=`• ${p.name} (${p.color}) - R$ ${p.price}%0A`;
 });
 window.open("https://wa.me/5534984449588?text="+text);
-}
-
-if(currentUser==="admin"){
-showAdmin();
-document.getElementById("logoutBtn").style.display="inline";
-}else if(currentUser){
-document.getElementById("logoutBtn").style.display="inline";
 }
 
 renderProducts();
