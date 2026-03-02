@@ -1,197 +1,267 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Loja Online</title>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f5f5f5; }
-    header { background: var(--cor-loja, #2c7be5); color: #fff; padding: 15px; text-align: center; }
-    nav { display: flex; justify-content: center; gap: 15px; background: #222; padding: 10px; }
-    nav button { color: #fff; background: none; border: none; cursor: pointer; font-size: 16px; }
-    .container { padding: 20px; }
-    .produto { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
-    .admin { background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-    input, button { padding: 8px; margin: 5px 0; }
-    .hidden { display: none; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pétrea Shop</title>
+
+<style>
+body{font-family:Arial;margin:0;background:#f5f5f5}
+header{background:#111;color:#fff;padding:15px;text-align:center}
+.container{padding:15px}
+button{padding:10px;margin:5px;border:none;background:#111;color:#fff;border-radius:6px;cursor:pointer}
+input,select,textarea{padding:8px;margin:5px;width:100%;max-width:300px}
+.card{background:#fff;padding:10px;border-radius:8px;margin:10px 0}
+img{max-width:100%;border-radius:6px}
+.hidden{display:none}
+.topbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.qty{width:60px}
+.pasteBox{border:2px dashed #999;padding:15px;margin:10px 0;text-align:center;background:#fafafa}
+</style>
 </head>
+
 <body>
-  <header>
-    <h1 id="nomeLoja">Minha Loja</h1>
-  </header>
 
-  <nav>
-    <button onclick="mostrarPagina('inicio')">Início</button>
-    <button onclick="mostrarPagina('carrinho')">Carrinho</button>
-    <button onclick="mostrarPagina('conta')">Conta</button>
-  </nav>
+<header>
+<h2 id="storeName">Pétrea Shop</h2>
+<p id="storeDesc">Calças, shorts, camisas, blusas e mais</p>
+</header>
 
-  <div class="container">
+<div class="container">
 
-    <!-- LOGIN ADMIN -->
-    <div id="loginAdmin" class="admin">
-      <h3>Login Admin</h3>
-      <input id="adminUser" placeholder="Usuário" />
-      <input id="adminPass" type="password" placeholder="Senha" />
-      <button onclick="loginAdmin()">Entrar</button>
-    </div>
+<div class="topbar">
+<button onclick="showHome()">🏠 Início</button>
+<button onclick="showCart()">🛒 Carrinho</button>
+<button onclick="showLogin()">👤 Conta</button>
+<button id="adminBtn" class="hidden" onclick="showAdmin()">⚙️ Admin</button>
+</div>
 
-    <!-- PAINEL ADMIN -->
-    <div id="painelAdmin" class="admin hidden">
-      <h3>Painel do Admin</h3>
+<div id="home"></div>
+<div id="productView" class="hidden"></div>
+<div id="cart" class="hidden"></div>
+<div id="login" class="hidden"></div>
+<div id="admin" class="hidden"></div>
 
-      <label>Nome da Loja</label><br />
-      <input id="novoNome" placeholder="Novo nome" />
-      <button onclick="salvarNome()">Salvar Nome</button><br />
+</div>
 
-      <label>Cor da Loja</label><br />
-      <input id="novaCor" type="color" />
-      <button onclick="salvarCor()">Salvar Cor</button><br />
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-      <hr />
-      <h4>Adicionar Produto</h4>
-      <input id="prodNome" placeholder="Nome do produto" />
-      <input id="prodPreco" placeholder="Preço" />
-      <button onclick="adicionarProduto()">Adicionar</button>
-    </div>
+// 🔴 COLE AQUI SUAS CHAVES DO FIREBASE
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_AUTH_DOMAIN",
+  projectId: "SEU_PROJECT_ID",
+  storageBucket: "SEU_BUCKET",
+  messagingSenderId: "SEU_MSG_ID",
+  appId: "SEU_APP_ID"
+};
 
-    <!-- PÁGINAS -->
-    <div id="paginaInicio">
-      <h2>Produtos</h2>
-      <div id="listaProdutos"></div>
-    </div>
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-    <div id="paginaCarrinho" class="hidden">
-      <h2>Carrinho</h2>
-      <div id="listaCarrinho"></div>
-    </div>
+// -------- DADOS --------
+let products=[];
+let user=JSON.parse(localStorage.getItem("user")||"null");
+let currentImage="";
 
-    <div id="paginaConta" class="hidden">
-      <h2>Minha Conta</h2>
-      <p>Área do usuário.</p>
-    </div>
+const ADMIN_USER="admin";
+const ADMIN_PASS="Petrea2024";
 
-  </div>
+// -------- NAV --------
+function hideAll(){
+home.classList.add("hidden");
+productView.classList.add("hidden");
+cart.classList.add("hidden");
+login.classList.add("hidden");
+admin.classList.add("hidden");
+}
 
-<script>
-  // 🔥 CONFIGURE COM SEU FIREBASE
-  const firebaseConfig = {
-    apiKey: "SUA_API_KEY",
-    authDomain: "SEU_DOMINIO",
-    projectId: "SEU_PROJECT_ID",
-  };
+window.showHome=function(){ hideAll(); home.classList.remove("hidden"); renderProducts(); }
+window.showCart=function(){ hideAll(); cart.classList.remove("hidden"); renderCart(); }
+window.showLogin=function(){ hideAll(); login.classList.remove("hidden"); }
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+window.showAdmin=function(){
+if(!isAdmin()){ alert("Acesso apenas admin"); return }
+hideAll(); admin.classList.remove("hidden"); renderAdmin();
+}
 
-  // =========================
-  // NAVEGAÇÃO
-  // =========================
-  function mostrarPagina(pagina) {
-    document.getElementById('paginaInicio').classList.add('hidden');
-    document.getElementById('paginaCarrinho').classList.add('hidden');
-    document.getElementById('paginaConta').classList.add('hidden');
+function isAdmin(){ return user && user.admin===true }
 
-    if (pagina === 'inicio') document.getElementById('paginaInicio').classList.remove('hidden');
-    if (pagina === 'carrinho') document.getElementById('paginaCarrinho').classList.remove('hidden');
-    if (pagina === 'conta') document.getElementById('paginaConta').classList.remove('hidden');
-  }
+function updateAdminBtn(){
+if(isAdmin()) adminBtn.classList.remove("hidden")
+else adminBtn.classList.add("hidden")
+}
 
-  // =========================
-  // LOGIN ADMIN
-  // =========================
-  function loginAdmin() {
-    const user = document.getElementById('adminUser').value;
-    const pass = document.getElementById('adminPass').value;
+// -------- PRODUTOS FIREBASE --------
+async function loadProducts(){
+const snap=await getDocs(collection(db,"products"));
+products=[];
+snap.forEach(d=> products.push({id:d.id,...d.data()}));
+renderProducts();
+}
 
-    if (user === 'admin' && pass === 'Petrea2024') {
-      document.getElementById('painelAdmin').classList.remove('hidden');
-      document.getElementById('loginAdmin').classList.add('hidden');
-    } else {
-      alert('Login inválido');
-    }
-  }
+function renderProducts(){
+home.innerHTML="";
+products.forEach((p,i)=>{
+home.innerHTML+=`
+<div class="card">
+<img src="${p.img}">
+<h3>${p.name}</h3>
+<p>R$ ${p.price}</p>
+<button onclick="openProduct(${i})">Ver produto</button>
+</div>`;
+});
+}
 
-  // =========================
-  // CONFIG LOJA (GLOBAL)
-  // =========================
-  function salvarNome() {
-    const nome = document.getElementById('novoNome').value;
-    db.collection('config').doc('loja').set({ nome }, { merge: true });
-  }
+window.openProduct=function(i){
+const p=products[i];
+productView.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<div class="card">
+<img src="${p.img}">
+<h2>${p.name}</h2>
+<p>${p.desc}</p>
+<p>R$ ${p.price}</p>
+<label>Quantidade</label>
+<input type="number" id="qty" value="1" min="1">
+<button onclick="addCart(${i})">Adicionar ao carrinho</button>
+</div>`;
+hideAll();
+productView.classList.remove("hidden");
+}
 
-  function salvarCor() {
-    const cor = document.getElementById('novaCor').value;
-    db.collection('config').doc('loja').set({ cor }, { merge: true });
-  }
+// -------- CARRINHO GLOBAL --------
+function getCart(){
+if(!user) return [];
+return JSON.parse(localStorage.getItem("cart_"+user.name)||"[]");
+}
+function saveCart(c){
+if(!user) return;
+localStorage.setItem("cart_"+user.name,JSON.stringify(c));
+}
 
-  db.collection('config').doc('loja').onSnapshot(doc => {
-    const data = doc.data();
-    if (!data) return;
+window.addCart=function(i){
+if(!user){ alert("Faça login"); return }
+let cartData=getCart();
+const p=products[i];
+cartData.push({name:p.name,price:p.price,qty:Number(qty.value)});
+saveCart(cartData);
+alert("Adicionado");
+}
 
-    if (data.nome) document.getElementById('nomeLoja').innerText = data.nome;
-    if (data.cor) document.documentElement.style.setProperty('--cor-loja', data.cor);
-  });
+function renderCart(){
+let cartData=getCart();
+cart.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`;
+let total=0;
+cartData.forEach((c,i)=>{
+total+=c.price*c.qty;
+cart.innerHTML+=`
+<div class="card">
+<b>${c.name}</b><br>
+Qtd: ${c.qty}<br>
+Total: R$ ${c.price*c.qty}
+</div>`;
+});
+cart.innerHTML+=`<h3>Total: R$ ${total}</h3>`;
+}
 
-  // =========================
-  // PRODUTOS
-  // =========================
-  function adicionarProduto() {
-    const nome = document.getElementById('prodNome').value;
-    const preco = document.getElementById('prodPreco').value;
+// -------- LOGIN --------
+login.innerHTML=`
+<h3>Login</h3>
+<input id="u" placeholder="Usuário">
+<input id="p" type="password" placeholder="Senha">
+<button onclick="doLogin()">Entrar</button>
+`;
 
-    if (!nome || !preco) {
-      alert('Preencha nome e preço');
-      return;
-    }
+window.doLogin=function(){
+if(u.value===ADMIN_USER && p.value===ADMIN_PASS){
+user={admin:true,name:"admin"};
+}else{
+user={admin:false,name:u.value};
+}
+localStorage.setItem("user",JSON.stringify(user));
+updateAdminBtn();
+showHome();
+}
 
-    db.collection('produtos').add({ nome, preco });
+// -------- ADMIN --------
+function renderAdmin(){
+admin.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<h3>Painel Admin</h3>
 
-    document.getElementById('prodNome').value = '';
-    document.getElementById('prodPreco').value = '';
-  }
+<input id="pn" placeholder="Nome">
+<input id="pp" placeholder="Preço">
+<input id="pd" placeholder="Descrição">
+<input id="pc" placeholder="Cores ex: branco,preto">
 
-  const carrinho = [];
+<div class="pasteBox" contenteditable="true" id="pasteArea">
+📋 Cole a imagem aqui (Ctrl+V)
+</div>
 
-  db.collection('produtos').onSnapshot(snapshot => {
-    const lista = document.getElementById('listaProdutos');
-    lista.innerHTML = '';
+<img id="preview" style="max-width:150px;display:none;margin:10px 0">
 
-    snapshot.forEach(doc => {
-      const p = doc.data();
+<button onclick="addProduct()">Adicionar</button>
 
-      const div = document.createElement('div');
-      div.className = 'produto';
-      div.innerHTML = `
-        <strong>${p.nome}</strong><br>
-        R$ ${p.preco}<br>
-        <button onclick="addCarrinho('${p.nome}','${p.preco}')">Adicionar ao carrinho</button>
-      `;
-      lista.appendChild(div);
-    });
-  });
+<div id="adminProducts"></div>
+`;
 
-  function addCarrinho(nome, preco) {
-    carrinho.push({ nome, preco });
-    renderCarrinho();
-    alert('Produto adicionado ao carrinho');
-  }
+// capturar colagem
+setTimeout(()=>{
+const box=document.getElementById("pasteArea");
+box.onpaste=e=>{
+const items=e.clipboardData.items;
+for(let item of items){
+if(item.type.indexOf("image")!==-1){
+const file=item.getAsFile();
+const reader=new FileReader();
+reader.onload=ev=>{
+currentImage=ev.target.result;
+preview.src=currentImage;
+preview.style.display="block";
+};
+reader.readAsDataURL(file);
+}
+}
+};
+},200);
 
-  function renderCarrinho() {
-    const lista = document.getElementById('listaCarrinho');
-    lista.innerHTML = '';
+renderAdminProducts();
+}
 
-    carrinho.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'produto';
-      div.innerHTML = `${item.nome} - R$ ${item.preco}`;
-      lista.appendChild(div);
-    });
-  }
+window.addProduct=async function(){
+if(!isAdmin()){ alert("Somente admin"); return }
+if(!currentImage){ alert("Cole uma imagem primeiro"); return }
+
+await addDoc(collection(db,"products"),{
+name:pn.value,
+price:Number(pp.value),
+desc:pd.value,
+colors:pc.value.split(","),
+img:currentImage
+});
+
+currentImage="";
+loadProducts();
+renderAdmin();
+}
+
+async function renderAdminProducts(){
+const snap=await getDocs(collection(db,"products"));
+adminProducts.innerHTML="";
+snap.forEach(d=>{
+adminProducts.innerHTML+=`<div class="card">${d.data().name}</div>`;
+});
+}
+
+// -------- INIT --------
+updateAdminBtn();
+loadProducts();
+showHome();
+
 </script>
 </body>
 </html>
