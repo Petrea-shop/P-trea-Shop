@@ -1,3 +1,4 @@
+<!-- CÓDIGO COMPLETO CORRIGIDO -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -29,7 +30,6 @@ img{max-width:100%;border-radius:6px}
 </header>
 
 <div class="container">
-
 <div class="topbar">
 <button onclick="showHome()">🏠 Início</button>
 <button onclick="showCart()">🛒 Carrinho <span id="cartCount" class="badge">0</span></button>
@@ -39,16 +39,16 @@ img{max-width:100%;border-radius:6px}
 
 <div id="home"></div>
 <div id="productView" class="hidden"></div>
-<div id="cart" class="hidden"></div>
-<div id="login" class="hidden"></div>
+<div id="cartPage" class="hidden"></div>
+<div id="login"></div>
 <div id="admin" class="hidden"></div>
-
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+/* 🔥 COLOQUE SUAS CHAVES AQUI */
 const firebaseConfig = {
   apiKey: "SUA_API_KEY",
   authDomain: "SEU_AUTH_DOMAIN",
@@ -63,40 +63,53 @@ const db = getFirestore(app);
 
 let products=[];
 let user=JSON.parse(localStorage.getItem("user")||"null");
-let currentImage="";
 let editId=null;
+let currentImage="";
 
 const ADMIN_USER="admin";
 const ADMIN_PASS="Petrea2024";
 
-function hideAll(){
-home.classList.add("hidden");
-productView.classList.add("hidden");
-cart.classList.add("hidden");
-login.classList.add("hidden");
-admin.classList.add("hidden");
-}
-window.showHome=function(){ hideAll(); home.classList.remove("hidden"); renderProducts(); }
-window.showCart=function(){ hideAll(); cart.classList.remove("hidden"); renderCart(); }
-window.showLogin=function(){ hideAll(); login.classList.remove("hidden"); }
-window.showAdmin=function(){ if(!isAdmin()) return alert("Acesso apenas admin"); hideAll(); admin.classList.remove("hidden"); renderAdmin(); }
+const home=document.getElementById("home");
+const productView=document.getElementById("productView");
+const cartPage=document.getElementById("cartPage");
+const login=document.getElementById("login");
+const admin=document.getElementById("admin");
+const adminBtn=document.getElementById("adminBtn");
+const cartCount=document.getElementById("cartCount");
 
+/* ---------------- PERMISSÃO ---------------- */
 function isAdmin(){ return user && user.admin===true }
 function updateAdminBtn(){ adminBtn.classList.toggle("hidden",!isAdmin()) }
 
-// PRODUCTS
+/* ---------------- NAV ---------------- */
+function hideAll(){
+home.classList.add("hidden");
+productView.classList.add("hidden");
+cartPage.classList.add("hidden");
+login.classList.add("hidden");
+admin.classList.add("hidden");
+}
+
+window.showHome=()=>{ hideAll(); home.classList.remove("hidden"); renderProducts(); }
+window.showCart=()=>{ hideAll(); cartPage.classList.remove("hidden"); renderCart(); }
+window.showLogin=()=>{ hideAll(); login.classList.remove("hidden"); }
+window.showAdmin=()=>{ if(!isAdmin()) return alert("Acesso apenas admin"); hideAll(); admin.classList.remove("hidden"); renderAdmin(); }
+
+/* ---------------- FIREBASE ---------------- */
 async function loadProducts(){
 const snap=await getDocs(collection(db,"products"));
 products=[];
-snap.forEach(d=> products.push({id:d.id,...d.data()}));
+snap.forEach(d=>products.push({id:d.id,...d.data()}));
 renderProducts();
 }
 
+/* ---------------- PRODUTOS ---------------- */
 function renderProducts(){
 home.innerHTML="";
 products.forEach((p,i)=>{
-home.innerHTML+=`<div class="card">
-<img src="${p.img}">
+home.innerHTML+=`
+<div class="card">
+<img src="${p.img||''}">
 <h3>${p.name}</h3>
 <p>R$ ${p.price}</p>
 <button onclick="openProduct(${i})">Ver produto</button>
@@ -106,11 +119,12 @@ home.innerHTML+=`<div class="card">
 
 window.openProduct=function(i){
 const p=products[i];
-productView.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>
+productView.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
 <div class="card">
-<img src="${p.img}">
+<img src="${p.img||''}">
 <h2>${p.name}</h2>
-<p>${p.desc}</p>
+<p>${p.desc||''}</p>
 <p>R$ ${p.price}</p>
 <input type="number" id="qty" value="1" min="1">
 <button onclick="addCart(${i})">Adicionar ao carrinho</button>
@@ -118,48 +132,52 @@ productView.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>
 hideAll(); productView.classList.remove("hidden");
 }
 
-// CART
+/* ---------------- CARRINHO ---------------- */
 function getCart(){ if(!user) return []; return JSON.parse(localStorage.getItem("cart_"+user.name)||"[]") }
 function saveCart(c){ if(!user) return; localStorage.setItem("cart_"+user.name,JSON.stringify(c)); updateCartCount(); }
 
 function updateCartCount(){
 const c=getCart();
-const total=c.reduce((s,i)=>s+i.qty,0);
-cartCount.textContent=total;
+cartCount.textContent=c.reduce((s,i)=>s+i.qty,0);
 }
 
 window.addCart=function(i){
 if(!user) return alert("Faça login");
 let c=getCart();
-const q=document.getElementById("qty");
-c.push({name:products[i].name,price:products[i].price,qty:Number(q.value||1)});
+const qty=document.getElementById("qty");
+c.push({name:products[i].name,price:products[i].price,qty:Number(qty.value)});
 saveCart(c);
 alert("Adicionado");
 }
 
 function renderCart(){
 let c=getCart();
-cart.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`;
-let total=0;
+cartPage.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>`;
+if(!c.length){ cartPage.innerHTML+="<p>Carrinho vazio</p>"; return }
 
+let total=0;
 c.forEach((item,i)=>{
 total+=item.price*item.qty;
-cart.innerHTML+=`<div class="card">
-<b>${item.name}</b><br>
-Qtd: <input class="qty" type="number" value="${item.qty}" onchange="changeQty(${i},this.value)">
+cartPage.innerHTML+=`
+<div class="card">
+<b>${item.name}</b>
+<br>Qtd: <input class="qty" type="number" value="${item.qty}" onchange="changeQty(${i},this.value)">
 <br>Total: R$ ${item.price*item.qty}
 <br><button onclick="removeItem(${i})">Remover</button>
 </div>`;
 });
 
-cart.innerHTML+=`<h3>Total: R$ ${total}</h3>
+cartPage.innerHTML+=`
+<h3>Total: R$ ${total}</h3>
+<button onclick="clearCart()">Limpar Carrinho</button>
 <button onclick="checkout()">Finalizar no WhatsApp</button>`;
 }
 
-window.changeQty=function(i,v){ let c=getCart(); c[i].qty=Number(v); saveCart(c); renderCart(); }
-window.removeItem=function(i){ let c=getCart(); c.splice(i,1); saveCart(c); renderCart(); }
+window.changeQty=(i,v)=>{ let c=getCart(); c[i].qty=Number(v); saveCart(c); renderCart(); }
+window.removeItem=(i)=>{ let c=getCart(); c.splice(i,1); saveCart(c); renderCart(); }
+window.clearCart=()=>{ saveCart([]); renderCart(); }
 
-window.checkout=function(){
+window.checkout=()=>{
 let c=getCart();
 if(!c.length) return alert("Carrinho vazio");
 let msg="Pedido:%0A";
@@ -167,8 +185,9 @@ c.forEach(i=> msg+=`${i.name} x${i.qty} - R$${i.price*i.qty}%0A`);
 window.open(`https://wa.me/5534984449588?text=${msg}`);
 }
 
-// LOGIN
-login.innerHTML=`<h3>Login</h3>
+/* ---------------- LOGIN ---------------- */
+login.innerHTML=`
+<h3>Login</h3>
 <input id="u" placeholder="Usuário">
 <input id="p" type="password" placeholder="Senha">
 <button onclick="doLogin()">Entrar</button>`;
@@ -180,38 +199,19 @@ localStorage.setItem("user",JSON.stringify(user));
 updateAdminBtn(); updateCartCount(); showHome();
 }
 
-// ADMIN
+/* ---------------- ADMIN ---------------- */
 function renderAdmin(){
-admin.innerHTML=`<button onclick="showHome()">⬅ Voltar</button>
-<h3>Painel Admin Avançado</h3>
-
+admin.innerHTML=`
+<button onclick="showHome()">⬅ Voltar</button>
+<h3>Painel Admin</h3>
 <input id="pn" placeholder="Nome">
 <input id="pp" placeholder="Preço">
 <input id="pd" placeholder="Descrição">
 <input id="pc" placeholder="Cores">
-
-<div class="pasteBox" contenteditable="true" id="pasteArea">📋 Cole a imagem aqui</div>
-<img id="preview" style="max-width:120px;display:none">
-
-<button id="btnSave">Salvar Produto</button>
+<input id="pimg" placeholder="URL da imagem">
+<button onclick="saveProduct()">Salvar Produto</button>
 <hr>
 <div id="adminProducts"></div>`;
-
-setTimeout(()=>{
-const box=document.getElementById("pasteArea");
-box.onpaste=e=>{
-for(let item of e.clipboardData.items){
-if(item.type.includes("image")){
-const reader=new FileReader();
-reader.onload=ev=>{ currentImage=ev.target.result; preview.src=currentImage; preview.style.display="block"; };
-reader.readAsDataURL(item.getAsFile());
-}
-}
-};
-
-document.getElementById("btnSave").onclick=saveProduct;
-},200);
-
 renderAdminProducts();
 }
 
@@ -221,9 +221,9 @@ if(!isAdmin()) return alert("Somente admin");
 const data={
 name:pn.value,
 price:Number(pp.value),
- desc:pd.value,
+desc:pd.value,
 colors:pc.value.split(","),
-img:currentImage
+img:pimg.value
 };
 
 if(editId){
@@ -232,8 +232,6 @@ editId=null;
 }else{
 await addDoc(collection(db,"products"),data);
 }
-
-currentImage="";
 loadProducts();
 renderAdmin();
 }
@@ -241,39 +239,35 @@ renderAdmin();
 async function renderAdminProducts(){
 const snap=await getDocs(collection(db,"products"));
 adminProducts.innerHTML="";
-
 snap.forEach(d=>{
-// 🔒 BOTÕES SÓ PARA ADMIN
-if(isAdmin()){
-adminProducts.innerHTML+=`<div class="card">
+adminProducts.innerHTML+=`
+<div class="card">
 <b>${d.data().name}</b>
 <br><button onclick="editProduct('${d.id}')">Editar</button>
 <button onclick="deleteProduct('${d.id}')">Excluir</button>
 </div>`;
-}else{
-adminProducts.innerHTML+=`<div class="card"><b>${d.data().name}</b></div>`;
-}
 });
 }
 
 window.editProduct=function(id){
-if(!isAdmin()) return alert("Somente admin");
 const p=products.find(x=>x.id===id);
-pn.value=p.name; pp.value=p.price; pd.value=p.desc; pc.value=(p.colors||[]).join(",");
-currentImage=p.img; preview.src=p.img; preview.style.display="block";
+pn.value=p.name;
+pp.value=p.price;
+pd.value=p.desc;
+pc.value=(p.colors||[]).join(",");
+pimg.value=p.img||"";
 editId=id;
 window.scrollTo(0,0);
 }
 
 window.deleteProduct=async function(id){
-// 🔒 PROTEÇÃO REAL
-if(!isAdmin()) return alert("Somente admin pode excluir");
 if(!confirm("Excluir produto?")) return;
 await deleteDoc(doc(db,"products",id));
-loadProducts(); renderAdmin();
+loadProducts();
+renderAdmin();
 }
 
-// INIT
+/* ---------------- INIT ---------------- */
 updateAdminBtn();
 loadProducts();
 updateCartCount();
